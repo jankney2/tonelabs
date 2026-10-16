@@ -12,7 +12,8 @@
     "db:apply": "node scripts/apply-sql.js",
     "sync:ringsnitch": "node scripts/sync-ringsnitch.js",
     "sync:jigglewire": "node scripts/sync-jigglewire.js",
-    "sync:lawllama": "node scripts/sync-lawllama.js"
+    "sync:lawllama": "node scripts/sync-lawllama.js",
+    "sync:blankety": "node scripts/sync-blankety.js"
   },
   "jest": {
     "transform": {}

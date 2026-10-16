@@ -8,7 +8,8 @@
     "deploy": "node scripts/with-env.js wrangler deploy",
     "audit": "node scripts/audit-db.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "db:pull": "drizzle-kit pull"
+    "db:pull": "drizzle-kit pull",
+    "db:apply": "node scripts/apply-sql.js"
   },
   "jest": {
     "transform": {}

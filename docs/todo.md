@@ -15,7 +15,7 @@ The cron is coded (`src/scheduled.js`, `[triggers]` in `wrangler.toml`) and test
 - Who answers the main line (888) 477-7204? Ringsnitch tracker TRK105 ("Main line (front desk)", forwards to +1 773 555 0110) has no calls among the 3,549 we pulled. Is it not recorded in Ringsnitch, or are those calls only in TalkEgg?
 - Ringsnitch has only four users (Dana, Denise, "Front Office", Brainfog Media) and none are intake staff, and calls carry no user field. Confirm that who handled a call comes from Jigglewire/TalkEgg, not Ringsnitch.
 - Jigglewire timestamps all say -07:00 (Pacific) although the office is in Chicago. Are the phone system clocks set to the wrong zone, or is it just the label? Rosa is switched off "Receive queue calls" on the Intake queue: deliberate?
-- Existing open questions are in `docs/systems.md` (logins, Mostlyanswered file, LSA leads, recordings, Blankety to Lawllama).
+- Existing open questions are in `docs/systems.md` (logins, LSA leads, recordings, Blankety to Lawllama).
 
 ## Date reconciliation
 Most APIs return dates in different formats and zones. Add a helper (e.g. `src/lib/dates.js`) that normalises any source timestamp to UTC, with the source zone set per system, and use it when reconciling (never in the raw tables). Cover it with tests per source format, DST edges and the Jigglewire -07:00 question (see "Ask Denise"), plus a QA query that compares one contact's timestamps across systems. Also listed in the plan's Verification (QA) section.
@@ -53,6 +53,13 @@ Before hand-in (and before putting any sync on the cron), work out for each syst
 - Marcus's phone rings first on 1,338 calls and he answers 570 of them (43%), while Devin (first on 454) answers 91%. Is the ring order intentional (`ops.staff.ring_order` says Marcus first)?
 - Lawllama `last_contacted_at` is empty and `converted` is always false. Are those fields in use?
 - Resolved while building: Jigglewire's `-07:00` label is correct as an instant (see docs/systems.md); Blankety is on US Eastern time (4 h behind UTC, recheck after 1 Nov when daylight saving ends).
+
+## Ask Denise (from Mostlyanswered)
+- Which time zone are the answering service's message times in? (No zone in the CSV; assumed Chicago until proven by pairing messages with forwarded calls, see "QA: time zone reconciliation".)
+- The service logs 83 "Recording, no one on the line ... new chat lead ... press 1" messages and 171 medical-records robocalls. Who is the "new chat lead" caller (a lead vendor or the website chat)? Should it reach the firm at all?
+- Callbacks are "promised within 24 hrs" on 849 messages. Who makes them and where is it recorded? Operators are DS, JT, RM, KL: who are they (the service's staff)?
+- The 307 "existing client" messages cite matters such as HP-2026-0115, which are not in Docketmonster as we hold it (matters run from HP-2026-1035 upward?). Is the numbering different, or are these callers not clients?
+- Not on the cron, so no Worker secrets yet. If added: `MOSTLY_ANSWERED_URL`, `MOSTLY_ANSWERED_USER`, `MOSTLY_ANSWERED_PASS`. Next: add the messages to identity resolution (`src/identity/sources.js`, by `Callback Number`) and to `contact_events`.
 
 ## Later: event reconciliation
 - Pair Ringsnitch and Jigglewire calls by their shared id suffix (`CAL<x>` / `JICAL<x>`) so each call is one event with the ad channel from Ringsnitch and the handler from Jigglewire; today both are kept as separate `contact_events`.

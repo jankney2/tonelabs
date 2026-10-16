@@ -90,6 +90,12 @@ export const rawBlanketySubmissionsHistory = historyTable('raw_blankety_submissi
 export const rawDocketmonsterMatters = rawTable('raw_docketmonster_matters');
 export const rawDocketmonsterMattersHistory = historyTable('raw_docketmonster_matters_history');
 
+// Mostlyanswered (sql/010_raw_mostlyanswered.sql): daily CSV files (source_id = file name) and their message rows (source_id = "<file>:<row>").
+export const rawMostlyansweredFiles = rawTable('raw_mostlyanswered_files');
+export const rawMostlyansweredFilesHistory = historyTable('raw_mostlyanswered_files_history');
+export const rawMostlyansweredMessages = rawTable('raw_mostlyanswered_messages');
+export const rawMostlyansweredMessagesHistory = historyTable('raw_mostlyanswered_messages_history');
+
 // Identity (sql/008_identity.sql): people by phone, links back to raw records, employees, one event timeline.
 const ts = (name) => timestamp(name, { withTimezone: true, mode: 'string' });
 

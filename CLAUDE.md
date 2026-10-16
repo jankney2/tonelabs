@@ -48,7 +48,7 @@ We are now connecting each system in turn, using Ringsnitch as the template. For
 4. **A script** `scripts/sync-<system>.js` (`--full`, `--max-pages`) and an `npm run sync:<system>` entry; requests are audited to `hp.integration_logs` through the service's logger.
 5. Jest tests with a fake fetch/db, a row in `docs/systems.md` (access, fields, quirks found), and a probe or live run to check the real response shapes before designing tables (docs often omit fields).
 
-Done so far: Ringsnitch (calls, trackers, users; also on the cron), Jigglewire (call log, extensions, queue presence, voicemail; script only, not yet on the cron), Lawllama (leads with contacts, lead statuses, users; script only; contact SSN/DOB/immigration status are redacted and never stored; monthly record quota, so sync incrementally), Blankety (forms, questions, submissions; script only; 1,000 calls/day). Branch per system: `feature/<system>-integration`.
+Done so far: Ringsnitch (calls, trackers, users; also on the cron), Jigglewire (call log, extensions, queue presence, voicemail; script only, not yet on the cron), Lawllama (leads with contacts, lead statuses, users; script only; contact SSN/DOB/immigration status are redacted and never stored; monthly record quota, so sync incrementally), Blankety (forms, questions, submissions; script only; 1,000 calls/day), Docketmonster (matters over SOAP via `soap.js`, no XML library; script only; whole history is one call). Branch per system: `feature/<system>-integration`.
 
 ## Planned architecture (agreed, not yet built; full plan in `~/.claude/plans/make-note-of-the-witty-unicorn.md`)
 

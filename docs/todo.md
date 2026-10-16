@@ -58,3 +58,11 @@ Before hand-in (and before putting any sync on the cron), work out for each syst
 - Pair Ringsnitch and Jigglewire calls by their shared id suffix (`CAL<x>` / `JICAL<x>`) so each call is one event with the ad channel from Ringsnitch and the handler from Jigglewire; today both are kept as separate `contact_events`.
 - Ringsnitch says `answered: true` on calls Jigglewire shows as forwarded or missed; record which system we trust for what.
 - Email and name matching (low confidence) once the phone-only review list has been read.
+
+## QA: time zone reconciliation
+Every source writes time differently, and one wrong zone silently moves calls in or out of office hours. Before hand-in, prove each source's zone with data and record the result in `docs/systems.md`. Zones live in `src/lib/dates.js` (`SOURCE_ZONES`, `toUtc`).
+- **Per-source check.** For each system, pair the same real-world event with another system's UTC time and report the offset in minutes: Ringsnitch (UTC, `Z`) vs Jigglewire call log (paired by id suffix `CAL<x>` / `JICAL<x>`; 2,991 pairs were 0 min on 2026-10-16), Lawllama `created_at` (UTC) vs Blankety `created_at` (all 454 were -4 h), Lawllama retained lead vs Docketmonster `OpenedDate` (only day-level so far, so Docketmonster's zone is still an assumption), Mostlyanswered and TalkEgg once ingested.
+- **Daylight saving.** US clocks go back on 2026-11-01. Rerun the Blankety offset check on data after that date: a constant -4 h means a fixed UTC-4 account, -5 h means US Eastern. If it is fixed, change `SOURCE_ZONES` and rebuild with `npm run resolve -- --full`.
+- **Office-hours flag.** Compare `contact_events.office_hours` against the hour of day in Chicago for a sample of calls near 8:00 and 18:00 and around midnight UTC; check Jigglewire's `-07:00` label never causes a mismatch.
+- **Display.** The dashboard shows Chicago time everywhere and stores UTC. Test a call at 23:30 Chicago (next day in UTC) lands on the right weekday and hour bucket.
+- **Tests.** Keep `tests/identity.test.js` date cases for each source format and the DST edges (spring forward, fall back); add a case for any new source.

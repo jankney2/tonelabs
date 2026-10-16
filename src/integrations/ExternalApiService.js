@@ -70,6 +70,16 @@ export class ExternalApiService {
     return h;
   }
 
+  /**
+   * Hook for auth that needs a network round trip (OAuth token exchange, session login).
+   * Called before every request; the default does nothing. Subclasses override it and may
+   * return extra headers to merge in. Static auth (bearer/header/basic/query) needs no override.
+   * @param {{force?: boolean}} [opts]  force: drop any cached credential and get a fresh one
+   * @returns {Promise<Record<string,string>|void>}
+   */
+  // eslint-disable-next-line no-unused-vars
+  async authenticate(opts) {}
+
   // --- Audit logging (hp.integration_logs). No-ops when no logger is set. ---
 
   async log(event, fields = {}) {
@@ -95,9 +105,11 @@ export class ExternalApiService {
   }
 
   /** Raw request: returns the Response after retries. Throws ApiError on non-2xx. */
-  async request(path, { query, headers, method = "GET" } = {}) {
+  async request(path, { query, headers, method = "GET", body, skipAuth = false } = {}) {
     const url = this.buildUrl(path, query);
+    let reauthed = false;
     for (let attempt = 0; ; attempt++) {
+      const authHeaders = skipAuth ? {} : (await this.authenticate()) ?? {};
       let res;
       const started = Date.now();
       const logReq = (status, message) => this.log(status >= 400 || status === undefined ? 'error' : 'request', {
@@ -107,7 +119,8 @@ export class ExternalApiService {
       try {
         res = await this.fetchImpl(url, {
           method,
-          headers: this.buildHeaders(headers),
+          headers: this.buildHeaders({ ...authHeaders, ...headers }),
+          ...(body !== undefined && { body }),
           signal: AbortSignal.timeout(this.timeoutMs)
         });
       } catch (err) {
@@ -121,6 +134,13 @@ export class ExternalApiService {
       }
       await logReq(res.status, res.ok ? null : `HTTP ${res.status}`);
       if (res.ok) return res;
+      // An expired/revoked token: get a fresh one and retry once (not counted as a retry attempt).
+      if (res.status === 401 && !skipAuth && !reauthed) {
+        reauthed = true;
+        await this.authenticate({ force: true });
+        attempt--;
+        continue;
+      }
       if (
         (res.status === 429 || res.status >= 500) &&
         attempt < this.maxRetries

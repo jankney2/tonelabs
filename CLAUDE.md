@@ -17,6 +17,12 @@ Step 1 is done: a Hono Worker with Basic Auth, a `/api/health` DB check, a place
 - Database is Neon Postgres, queried with `@neondatabase/serverless`. It already holds firm data in schema `ops` (`lsa_charges`, `marketing_spend`, `staff`). Never alter it; land our own data in `raw_<source>` tables.
 - No usable `python3` on this machine (missing Xcode tools); use Node for scripting.
 
+## Git
+
+- Branch `main`. Keep commits small: one feature or one logical change per commit, with tests and docs for that change in the same commit.
+- Write a short imperative subject line (for example "Add Ringsnitch raw table"). Never commit `.env` or `.dev.vars`.
+- Only commit when the user asks.
+
 ## The project
 
 A consulting-style engagement for a law firm, Harlow & Pike. The job has three parts:

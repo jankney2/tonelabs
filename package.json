@@ -13,7 +13,8 @@
     "sync:ringsnitch": "node scripts/sync-ringsnitch.js",
     "sync:jigglewire": "node scripts/sync-jigglewire.js",
     "sync:lawllama": "node scripts/sync-lawllama.js",
-    "sync:blankety": "node scripts/sync-blankety.js"
+    "sync:blankety": "node scripts/sync-blankety.js",
+    "sync:docketmonster": "node scripts/sync-docketmonster.js"
   },
   "jest": {
     "transform": {}

@@ -85,3 +85,7 @@ export const rawBlanketyQuestions = rawTable('raw_blankety_questions');
 export const rawBlanketyQuestionsHistory = historyTable('raw_blankety_questions_history');
 export const rawBlanketySubmissions = rawTable('raw_blankety_submissions');
 export const rawBlanketySubmissionsHistory = historyTable('raw_blankety_submissions_history');
+
+// Docketmonster (sql/007_raw_docketmonster.sql): matters, source_id = MatterNumber, payload = the SOAP Matter fields as strings.
+export const rawDocketmonsterMatters = rawTable('raw_docketmonster_matters');
+export const rawDocketmonsterMattersHistory = historyTable('raw_docketmonster_matters_history');

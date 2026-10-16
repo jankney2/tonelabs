@@ -42,3 +42,14 @@ test('syncs trackers and users only in the two daily slots, and a failure there 
   expect(syncReference).toHaveBeenCalledTimes(2);
   err.mockRestore();
 });
+
+test('the identity job runs resolve against the database, and a failure is swallowed', async () => {
+  const { runIdentityJob, IDENTITY_CRON } = await import('../src/scheduled.js');
+  expect(IDENTITY_CRON).toBe('15 * * * *');
+  const resolve = jest.fn(async () => ({ people: 5 }));
+  expect(await runIdentityJob(env, { resolve })).toEqual({ people: 5 });
+  expect(resolve.mock.calls[0][0].db).toBeDefined();
+  const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+  await expect(runIdentityJob(env, { resolve: async () => { throw new Error('boom'); } })).resolves.toBeUndefined();
+  err.mockRestore();
+});

@@ -9,6 +9,7 @@ binding = "ASSETS"
 run_worker_first = true
 preview_urls = false
 
-# Keep Ringsnitch data in sync. Needs Worker secrets RINGSNITCH_READKEY, RINGSNITCH_ACCOUNT_ID, DATABASE_URL.
+# "*/30" keeps Ringsnitch data in sync (needs Worker secrets RINGSNITCH_READKEY, RINGSNITCH_ACCOUNT_ID, DATABASE_URL).
+# "15 * * * *" links people and employees (needs only DATABASE_URL); IDENTITY_CRON in src/scheduled.js must match.
 [triggers]
-crons = ["*/30 * * * *"]
+crons = ["*/30 * * * *", "15 * * * *"]

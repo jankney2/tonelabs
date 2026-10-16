@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { basicAuth } from 'hono/basic-auth';
 import { neon } from '@neondatabase/serverless';
+import { dashboardRoutes } from './dashboard/routes.js';
 
 export const AUTH_USER = 'harlowpike';
 
@@ -27,6 +28,9 @@ export function createApp({ getDb = defaultGetDb } = {}) {
       return c.json({ ok: false, error: 'database unreachable' }, 503);
     }
   });
+
+  // Dashboard data (read-only; see src/dashboard/).
+  app.route('/api/dashboard', dashboardRoutes({ getDb }));
 
   // Everything else: static files from public/.
   app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));

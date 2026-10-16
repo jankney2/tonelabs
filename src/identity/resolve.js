@@ -18,6 +18,8 @@ const BATCH = 1000; // raw records per round trip
 const CHUNK = 400; // rows per INSERT (keeps parameters well under the driver limit)
 const PHONE_CONFIDENCE = 0.9; // same normalised number; shared numbers (family, business line) are why it is not 1.0
 
+const TRANSCRIPT_CONFIDENCE = 0.7; // a number an answering-service operator typed from a recording: could be misheard
+
 // Numbers that belong to the firm: tracking numbers, where they forward, the main line. Never a client.
 const FIRM_NUMBERS = ['+13125550100', '(888) 477-7204'];
 
@@ -106,8 +108,8 @@ export async function linkBatch(db, source, rows, ctx) {
     const rawPhone = row.phone ? String(row.phone) : '';
     return {
       sourceTable: source.table, sourceId: String(row.source_id), personId: phone ? personByPhone.get(phone) : null,
-      method: phone ? 'phone' : 'none', confidence: phone ? PHONE_CONFIDENCE.toFixed(2) : '0.00',
-      reason: phone ? `normalised phone ${phone} matches` : firm ? 'firm number, not a client' : rawPhone ? `phone not usable: ${rawPhone}` : 'no phone on record',
+      method: phone ? 'phone' : 'none', confidence: phone ? (row.phone_origin === 'transcript' ? TRANSCRIPT_CONFIDENCE : PHONE_CONFIDENCE).toFixed(2) : '0.00',
+      reason: phone ? (row.phone_origin === 'transcript' ? `normalised phone ${phone} read out in a recorded message (an operator's transcription)` : `normalised phone ${phone} matches`) : firm ? 'firm number, not a client' : rawPhone ? `phone not usable: ${rawPhone}` : 'no phone on record',
       nameSeen: name, nameKey: key,
     };
   });
@@ -143,7 +145,8 @@ export async function refreshPeople(db) {
     FROM (SELECT person_id, min(occurred_at) AS first_at, max(occurred_at) AS last_at FROM hp.contact_events
           WHERE person_id IS NOT NULL GROUP BY person_id) e
     WHERE p.person_id = e.person_id AND (p.first_contact_at IS DISTINCT FROM e.first_at OR p.last_contact_at IS DISTINCT FROM e.last_at)`);
-  // Automated: at least half the number's Ringsnitch call summaries say robocall/automated, and intake never heard from it.
+  // Automated: at least half the number's Ringsnitch call summaries say robocall/automated, and intake never heard from it;
+  // or it left an answering-service robocall / sales-call message and has no lead, matter, real message or employee contact.
   await db.execute(sql`
     WITH auto AS (
       SELECT l.person_id FROM hp.person_links l
@@ -152,7 +155,12 @@ export async function refreshPeople(db) {
         AND NOT EXISTS (SELECT 1 FROM hp.person_links x WHERE x.person_id = l.person_id
           AND x.source_table IN ('raw_lawllama_leads', 'raw_blankety_submissions', 'raw_docketmonster_matters'))
       GROUP BY l.person_id
-      HAVING avg(CASE WHEN r.payload->>'ai_summary' ~* ${sql.raw(`'${AUTOMATED_SUMMARY_SQL}'`)} THEN 1 ELSE 0 END) >= 0.5)
+      HAVING avg(CASE WHEN r.payload->>'ai_summary' ~* ${sql.raw(`'${AUTOMATED_SUMMARY_SQL}'`)} THEN 1 ELSE 0 END) >= 0.5
+      UNION
+      SELECT person_id FROM hp.contact_events WHERE person_id IS NOT NULL GROUP BY person_id
+      HAVING bool_or(kind = 'message' AND outcome IN ('robocall', 'sales_call'))
+        AND NOT bool_or(kind IN ('lead_created', 'form', 'matter_opened') OR handled_by = 'employee'
+          OR (kind = 'message' AND outcome IN ('new_matter', 'existing_client', 'chat_lead_recording'))))
     UPDATE hp.people p SET is_automated = (p.person_id IN (SELECT person_id FROM auto)), modified_at = now()
     WHERE p.is_automated IS DISTINCT FROM (p.person_id IN (SELECT person_id FROM auto))`);
   await db.execute(sql`

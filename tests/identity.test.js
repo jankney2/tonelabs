@@ -1,4 +1,4 @@
-import { displayName, nameKey, callLegs, callEmployee, handledBy, AUTOMATED_SUMMARY_RE } from '../src/identity/rules.js';
+import { displayName, nameKey, callLegs, callEmployee, handledBy, AUTOMATED_SUMMARY_RE, messageCategory, chatLead } from '../src/identity/rules.js';
 import { zonedToUtc, toUtc } from '../src/lib/dates.js';
 import { linkBatch } from '../src/identity/resolve.js';
 import { SOURCES } from '../src/identity/sources.js';
@@ -140,5 +140,31 @@ describe('linkBatch', () => {
     ]);
     // only the unusable-but-present phone needs a human
     expect(db.inserted.find((i) => i.table === matchReview).v.map((r) => r.kind)).toEqual(['no_valid_phone']);
+  });
+});
+
+describe('answering-service messages', () => {
+  test('classifies each message shape', () => {
+    expect(messageCategory('New matter (family): custody. Wants a callback.')).toBe('new_matter');
+    expect(messageCategory('Existing client, calling about their case (HP-2026-0115). Please call back.')).toBe('existing_client');
+    expect(messageCategory('Recording, no one on the line. It said "new chat lead", a name (A B?), x, then "press 1".')).toBe('chat_lead_recording');
+    expect(messageCategory('Recorded message about a medical records request. No one on the line.')).toBe('robocall');
+    expect(messageCategory('Sales call, no message.')).toBe('sales_call');
+    expect(messageCategory('something new')).toBe('other');
+  });
+
+  test('reads the lead out of a chat-lead recording, not the robot', () => {
+    const msg = 'Recording, no one on the line. It said "new chat lead", a name (Maria Crenshaw?), something about a deck, and a number, 847-555-0106, then "press 1". Hung up after.';
+    expect(chatLead(msg)).toEqual({ name: 'Maria Crenshaw', phone: '847-555-0106' });
+    expect(chatLead('Sales call, no message.')).toBeNull();
+  });
+
+  test('"No name given" is not a name', () => {
+    expect(displayName('No name given')).toBeNull();
+  });
+
+  test('"8/21/26 11:00 AM" local time is read in Chicago, with daylight saving', () => {
+    expect(toUtc('2026-08-21T11:00:00', 'raw_mostlyanswered_messages')).toBe('2026-08-21T16:00:00.000Z');
+    expect(toUtc('2026-12-01T11:00:00', 'raw_mostlyanswered_messages')).toBe('2026-12-01T17:00:00.000Z');
   });
 });

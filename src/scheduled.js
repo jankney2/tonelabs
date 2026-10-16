@@ -7,6 +7,8 @@ import { RingSnitchApiService } from './integrations/ringsnitch/RingSnitchApiSer
 import { syncRingsnitchCalls } from './integrations/ringsnitch/syncCalls.js';
 import { syncRingsnitchReference } from './integrations/ringsnitch/syncReference.js';
 import { isBusinessHours, isReferenceSyncSlot } from './officeHours.js';
+import { MostlyansweredApiService } from './integrations/mostlyanswered/MostlyansweredApiService.js';
+import { syncMostlyanswered } from './integrations/mostlyanswered/syncMessages.js';
 import { createDb } from './db/index.js';
 import { resolveIdentities } from './identity/resolve.js';
 import { IntegrationLogger } from './db/integrationLogger.js';
@@ -47,6 +49,27 @@ export async function runIdentityJob(env, { resolve = resolveIdentities } = {}) 
     return await resolve({ db: createDb(env.DATABASE_URL) });
   } catch (err) {
     console.error(`scheduled identity run failed: ${err.message}`); // also recorded in hp.identity_runs
+    return undefined;
+  }
+}
+
+// Third cron: once a day, read the answering service's directory for new daily files (posted at 07:00 service time).
+// 13:30 UTC is 08:30 Chicago in summer and 07:30 in winter. The hourly :15 identity job then links the new messages.
+// Incremental: only files that are new or changed are downloaded. Must match [triggers] in wrangler.toml.
+export const MOSTLYANSWERED_CRON = '30 13 * * *';
+
+export async function runMostlyansweredSync(env, { sync = syncMostlyanswered } = {}) {
+  const db = createDb(env.DATABASE_URL);
+  const api = new MostlyansweredApiService({
+    baseUrl: env.MOSTLY_ANSWERED_URL,
+    username: env.MOSTLY_ANSWERED_USER,
+    password: env.MOSTLY_ANSWERED_PASS,
+    logger: new IntegrationLogger(db),
+  });
+  try {
+    return await sync({ api, db, mode: 'incremental' });
+  } catch (err) {
+    console.error(`scheduled mostlyanswered sync failed: ${err.message}`); // also in hp.integration_logs (run_end)
     return undefined;
   }
 }

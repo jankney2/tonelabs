@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { runScheduledSync } from '../src/scheduled.js';
+import { runScheduledSync, runMostlyansweredSync, MOSTLYANSWERED_CRON } from '../src/scheduled.js';
 
 const env = { DATABASE_URL: 'postgres://u:p@h.neon.tech/d', RINGSNITCH_READKEY: 'k', RINGSNITCH_ACCOUNT_ID: 'ACC1' };
 
@@ -52,4 +52,16 @@ test('the identity job runs resolve against the database, and a failure is swall
   const err = jest.spyOn(console, 'error').mockImplementation(() => {});
   await expect(runIdentityJob(env, { resolve: async () => { throw new Error('boom'); } })).resolves.toBeUndefined();
   err.mockRestore();
+});
+
+test('mostlyanswered cron: incremental sync with the Basic Auth settings from env, failures swallowed', async () => {
+  let seen;
+  const mEnv = { DATABASE_URL: env.DATABASE_URL, MOSTLY_ANSWERED_URL: 'https://x.test/files/h/', MOSTLY_ANSWERED_USER: 'u', MOSTLY_ANSWERED_PASS: 'p' };
+  expect(await runMostlyansweredSync(mEnv, { sync: async (o) => { seen = o; return { downloaded: 1 }; } })).toEqual({ downloaded: 1 });
+  expect(seen.mode).toBe('incremental');
+  expect(seen.api.baseUrl).toBe('https://x.test/files/h');
+  const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+  await expect(runMostlyansweredSync(mEnv, { sync: async () => { throw new Error('boom'); } })).resolves.toBeUndefined();
+  err.mockRestore();
+  expect(MOSTLYANSWERED_CRON).toBe('30 13 * * *');
 });

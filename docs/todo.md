@@ -74,3 +74,19 @@ Every source writes time differently, and one wrong zone silently moves calls in
 - **Office-hours flag.** Compare `contact_events.office_hours` against the hour of day in Chicago for a sample of calls near 8:00 and 18:00 and around midnight UTC; check Jigglewire's `-07:00` label never causes a mismatch.
 - **Display.** The dashboard shows Chicago time everywhere and stores UTC. Test a call at 23:30 Chicago (next day in UTC) lands on the right weekday and hour bucket.
 - **Tests.** Keep `tests/identity.test.js` date cases for each source format and the DST edges (spring forward, fall back); add a case for any new source.
+
+## Dashboard phase: leads never contacted by an employee
+Found while adding Mostlyanswered: a robot phones the answering service to read out website-chat leads (name, issue, the lead's own number). 30 distinct leads were read out between 2026-08-24 and 2026-10-15; only 6 are in Lawllama or Blankety, and **23 have no employee contact of any kind**, so they exist only in `raw_mostlyanswered_messages`. These are the clearest "lost before anyone looked" list we have, and they do not appear in `hp.lost_opportunities` (that view starts from phone calls and Lawllama leads). Use them on the dashboard, with the caveats below.
+
+```sql
+SELECT person_id, display_name, primary_phone, min(message_at) AS first_message_at, count(*) AS messages
+FROM hp.message_callbacks
+WHERE message_type = 'chat_lead_recording' AND stage = 'caller'
+  AND NOT EXISTS (SELECT 1 FROM hp.contact_events e WHERE e.person_id = message_callbacks.person_id AND e.employee_id IS NOT NULL)
+GROUP BY 1, 2, 3 ORDER BY first_message_at;   -- one row = one lead, 23 rows on 2026-10-16
+```
+
+- Each lead is read out 2-3 times a few minutes apart (the view flags the repeats), so count people, not messages.
+- The name comes from the operator's transcription ("Maria Crenshaw?") and the number links at 0.70 confidence; a misheard digit would make a lead look uncontacted. Spot-check some against Lawllama and Blankety by name before showing a total.
+- "Never contacted" means no employee-handled or outbound event in our data; a callback made from a personal phone would not show.
+- Decide whether to fold these into `lost_opportunities` (new `loss_type`, e.g. `chat_lead_unanswered`) or keep a separate list. Ask Denise who the "new chat lead" caller is (see Mostlyanswered questions).

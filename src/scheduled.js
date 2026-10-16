@@ -8,6 +8,7 @@ import { syncRingsnitchCalls } from './integrations/ringsnitch/syncCalls.js';
 import { syncRingsnitchReference } from './integrations/ringsnitch/syncReference.js';
 import { isBusinessHours, isReferenceSyncSlot } from './officeHours.js';
 import { createDb } from './db/index.js';
+import { resolveIdentities } from './identity/resolve.js';
 import { IntegrationLogger } from './db/integrationLogger.js';
 
 export async function runScheduledSync(env, { sync = syncRingsnitchCalls, syncReference = syncRingsnitchReference, now = new Date() } = {}) {
@@ -35,4 +36,17 @@ export async function runScheduledSync(env, { sync = syncRingsnitchCalls, syncRe
     }
   }
   return result;
+}
+
+// Second cron: at :15 every hour, link whatever the syncs have landed to people and employees (src/identity/resolve.js).
+// Separate expression so the Ringsnitch handler above does not also run at :15. Must match [triggers] in wrangler.toml.
+export const IDENTITY_CRON = '15 * * * *';
+
+export async function runIdentityJob(env, { resolve = resolveIdentities } = {}) {
+  try {
+    return await resolve({ db: createDb(env.DATABASE_URL) });
+  } catch (err) {
+    console.error(`scheduled identity run failed: ${err.message}`); // also recorded in hp.identity_runs
+    return undefined;
+  }
 }

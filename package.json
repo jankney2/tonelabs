@@ -14,7 +14,8 @@
     "sync:jigglewire": "node scripts/sync-jigglewire.js",
     "sync:lawllama": "node scripts/sync-lawllama.js",
     "sync:blankety": "node scripts/sync-blankety.js",
-    "sync:docketmonster": "node scripts/sync-docketmonster.js"
+    "sync:docketmonster": "node scripts/sync-docketmonster.js",
+    "resolve": "node scripts/resolve-identities.js"
   },
   "jest": {
     "transform": {}

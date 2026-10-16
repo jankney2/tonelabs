@@ -46,3 +46,23 @@ Before hand-in (and before putting any sync on the cron), work out for each syst
 ## QA: deviations from the integration template
 - **Docketmonster incremental overlap is 30 days, not the template's 2** (`OVERLAP_DAYS` in `src/integrations/docketmonster/syncMatters.js`). Why: `GetMattersOpened` filters by *opened* date, so a matter whose `Status` changes later is only re-read while it is inside the window. Cost: one SOAP call returning a few dozen matters (about 113 on the last run), no stated rate limit. Check before hand-in: does any matter ever leave `Open` (all 259 are `Open` today)? If not, the overlap can go back to 2; if yes, confirm a status change older than 30 days can't be missed (otherwise run `--full` periodically). Compare `hp.raw_docketmonster_matters_history` against the window to see it working.
 - Same trap, 2-day overlap kept: Ringsnitch calls (`start_time`), Jigglewire call log (`startTime`) and Blankety submissions (`created_at`) are all windowed by *creation* time (checked in each sync module), so an edit to a row older than 2 days is missed until the next `--full`. Lawllama is fine: `updated_since` tracks edits. Calls and form submissions rarely change after the fact, so this is probably acceptable; decide per system whether the dashboard needs a periodic `--full`.
+
+## Ask Denise (from identity resolution)
+- 1,217 inbound calls were forwarded to the After-hours answering service (+1 847 555 0190); 322 of them in office hours, after the intake phones rang out. Is that the Mostlyanswered service? What happens to those messages, and is anyone calling those people back? The daily file is the missing link (see Mostlyanswered above).
+- 279 people called, never spoke to an employee and have no Lawllama lead (304 calls, 226 via the answering service). Are messages from the answering service entered anywhere?
+- Marcus's phone rings first on 1,338 calls and he answers 570 of them (43%), while Devin (first on 454) answers 91%. Is the ring order intentional (`ops.staff.ring_order` says Marcus first)?
+- Lawllama `last_contacted_at` is empty and `converted` is always false. Are those fields in use?
+- Resolved while building: Jigglewire's `-07:00` label is correct as an instant (see docs/systems.md); Blankety is on US Eastern time (4 h behind UTC, recheck after 1 Nov when daylight saving ends).
+
+## Later: event reconciliation
+- Pair Ringsnitch and Jigglewire calls by their shared id suffix (`CAL<x>` / `JICAL<x>`) so each call is one event with the ad channel from Ringsnitch and the handler from Jigglewire; today both are kept as separate `contact_events`.
+- Ringsnitch says `answered: true` on calls Jigglewire shows as forwarded or missed; record which system we trust for what.
+- Email and name matching (low confidence) once the phone-only review list has been read.
+
+## QA: time zone reconciliation
+Every source writes time differently, and one wrong zone silently moves calls in or out of office hours. Before hand-in, prove each source's zone with data and record the result in `docs/systems.md`. Zones live in `src/lib/dates.js` (`SOURCE_ZONES`, `toUtc`).
+- **Per-source check.** For each system, pair the same real-world event with another system's UTC time and report the offset in minutes: Ringsnitch (UTC, `Z`) vs Jigglewire call log (paired by id suffix `CAL<x>` / `JICAL<x>`; 2,991 pairs were 0 min on 2026-10-16), Lawllama `created_at` (UTC) vs Blankety `created_at` (all 454 were -4 h), Lawllama retained lead vs Docketmonster `OpenedDate` (only day-level so far, so Docketmonster's zone is still an assumption), Mostlyanswered and TalkEgg once ingested.
+- **Daylight saving.** US clocks go back on 2026-11-01. Rerun the Blankety offset check on data after that date: a constant -4 h means a fixed UTC-4 account, -5 h means US Eastern. If it is fixed, change `SOURCE_ZONES` and rebuild with `npm run resolve -- --full`.
+- **Office-hours flag.** Compare `contact_events.office_hours` against the hour of day in Chicago for a sample of calls near 8:00 and 18:00 and around midnight UTC; check Jigglewire's `-07:00` label never causes a mismatch.
+- **Display.** The dashboard shows Chicago time everywhere and stores UTC. Test a call at 23:30 Chicago (next day in UTC) lands on the right weekday and hour bucket.
+- **Tests.** Keep `tests/identity.test.js` date cases for each source format and the DST edges (spring forward, fall back); add a case for any new source.

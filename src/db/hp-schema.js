@@ -1,5 +1,5 @@
 // Our own tables, schema `hp`. Mirrors sql/001_hp_schema.sql (the SQL file is what creates them).
-import { pgSchema, bigserial, text, uuid, integer, jsonb, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgSchema, bigserial, bigint, text, uuid, integer, jsonb, timestamp, boolean, numeric, unique } from 'drizzle-orm/pg-core';
 
 export const hp = pgSchema('hp');
 
@@ -89,3 +89,94 @@ export const rawBlanketySubmissionsHistory = historyTable('raw_blankety_submissi
 // Docketmonster (sql/007_raw_docketmonster.sql): matters, source_id = MatterNumber, payload = the SOAP Matter fields as strings.
 export const rawDocketmonsterMatters = rawTable('raw_docketmonster_matters');
 export const rawDocketmonsterMattersHistory = historyTable('raw_docketmonster_matters_history');
+
+// Identity (sql/008_identity.sql): people by phone, links back to raw records, employees, one event timeline.
+const ts = (name) => timestamp(name, { withTimezone: true, mode: 'string' });
+
+export const people = hp.table('people', {
+  personId: bigserial('person_id', { mode: 'number' }).primaryKey(),
+  primaryPhone: text('primary_phone').notNull().unique(),
+  displayName: text('display_name'),
+  stage: text().notNull().default('caller'),
+  firstContactAt: ts('first_contact_at'),
+  lastContactAt: ts('last_contact_at'),
+  isAutomated: boolean('is_automated').notNull().default(false),
+  sharedPhone: boolean('shared_phone').notNull().default(false),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  modifiedAt: ts('modified_at').notNull().defaultNow(),
+});
+
+export const personLinks = hp.table('person_links', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  sourceTable: text('source_table').notNull(),
+  sourceId: text('source_id').notNull(),
+  personId: bigint('person_id', { mode: 'number' }).references(() => people.personId),
+  method: text().notNull(),
+  confidence: numeric({ precision: 3, scale: 2 }).notNull(),
+  reason: text().notNull(),
+  nameSeen: text('name_seen'),
+  nameKey: text('name_key'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [unique().on(t.sourceTable, t.sourceId)]);
+
+export const matchReview = hp.table('match_review', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  dedupeKey: text('dedupe_key').notNull().unique(),
+  kind: text().notNull(),
+  personId: bigint('person_id', { mode: 'number' }).references(() => people.personId),
+  phone: text(),
+  evidence: jsonb().notNull().default({}),
+  resolved: boolean().notNull().default(false),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const employees = hp.table('employees', {
+  employeeId: bigserial('employee_id', { mode: 'number' }).primaryKey(),
+  name: text().notNull(),
+  role: text(),
+  email: text().unique(),
+  isIntake: boolean('is_intake').notNull().default(false),
+  schedule: text(),
+});
+
+export const employeeIdentifiers = hp.table('employee_identifiers', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  employeeId: bigint('employee_id', { mode: 'number' }).notNull().references(() => employees.employeeId),
+  system: text().notNull(),
+  externalId: text('external_id').notNull(),
+}, (t) => [unique().on(t.system, t.externalId)]);
+
+export const contactEvents = hp.table('contact_events', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  sourceTable: text('source_table').notNull(),
+  sourceId: text('source_id').notNull(),
+  personId: bigint('person_id', { mode: 'number' }).references(() => people.personId),
+  employeeId: bigint('employee_id', { mode: 'number' }).references(() => employees.employeeId),
+  kind: text().notNull(),
+  occurredAt: ts('occurred_at').notNull(),
+  answered: boolean(),
+  handledBy: text('handled_by'),
+  outcome: text(),
+  durationS: integer('duration_s'),
+  channel: text(),
+  officeHours: boolean('office_hours').notNull(),
+  amountUsd: numeric('amount_usd'),
+}, (t) => [unique().on(t.sourceTable, t.sourceId)]);
+
+export const callLegs = hp.table('call_legs', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  eventId: bigint('event_id', { mode: 'number' }).notNull().references(() => contactEvents.id),
+  ringOrder: integer('ring_order').notNull(),
+  employeeId: bigint('employee_id', { mode: 'number' }).references(() => employees.employeeId),
+  extension: text(),
+  result: text(),
+  durationS: integer('duration_s'),
+}, (t) => [unique().on(t.eventId, t.ringOrder)]);
+
+export const identityRuns = hp.table('identity_runs', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  startedAt: ts('started_at').notNull().defaultNow(),
+  finishedAt: ts('finished_at'),
+  status: text().notNull().default('running'),
+  stats: jsonb(),
+});

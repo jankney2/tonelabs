@@ -53,3 +53,5 @@ Joins across systems: phone number (E.164) first, then email, then name. Normali
 5. How do Blankety form leads reach Lawllama, and has the connection ever failed?
 6. Which Docketmonster edition do we have (is Integration Services licensed), and is TalkEgg on Egg Pro?
 7. Which time zone are the Blankety, TalkEgg and Docketmonster accounts set to?
+
+Phone numbers: `src/lib/phone.js` (`normalizePhone`) turns any source format into E.164 (`+12065550103`) for reconciliation; the raw tables keep the source value. Lawllama writes web form leads as `206.555.0131` and phone leads as `(206) 555-0103`.

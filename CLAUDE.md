@@ -42,7 +42,7 @@ A consulting-style engagement for a law firm, Harlow & Pike. The job has three p
 
 - Backend: Hono on the Cloudflare Worker (Express-style routing, native to Workers), deployed with `wrangler deploy`. Express with a tunnel was rejected because `APP_URL` is the Worker and the app has to stay up after hand-in.
 - Frontend: vanilla JS and Chart.js, served as static assets from the same Worker.
-- Ingestion: local Node scripts that write raw per-source tables and then reconcile into `people` and `contacts` tables. The Worker only reads.
+- Ingestion: local Node scripts that write raw per-source tables and then reconcile into `people` and `contacts` tables.
 - Auth: HTTP Basic Auth with a Worker secret. Nothing heavier.
 - First step is a hello-world deploy plus a database connection check. Don't write code until the user says so.
 

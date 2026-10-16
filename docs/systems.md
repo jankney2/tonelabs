@@ -55,3 +55,40 @@ Joins across systems: phone number (E.164) first, then email, then name. Normali
 7. Which time zone are the Blankety, TalkEgg and Docketmonster accounts set to?
 
 Phone numbers: `src/lib/phone.js` (`normalizePhone`) turns any source format into E.164 (`+12065550103`) for reconciliation; the raw tables keep the source value. Lawllama writes web form leads as `206.555.0131` and phone leads as `(206) 555-0103`.
+
+## Identity layer (people, employees, events)
+
+Built by `npm run resolve` (`src/identity/resolve.js`; also an hourly cron at :15, coded but not deployed). `--full` empties the identity tables and rebuilds them from the raw tables (employees are kept). Phone is the only match key for now; merges are *flagged*, never forced.
+
+| Table / view | One row is | Notes |
+|---|---|---|
+| `hp.people` | A real person, keyed by normalised phone | `stage` caller / lead / client; `is_automated`, `shared_phone` flags; 2,088 rows on 2026-10-16 |
+| `hp.person_links` | One raw record's link to a person | `(source_table, source_id)` is unique and is the soft key back to `raw_*` (and `ops_lsa_charges`); `method`, `confidence` (0.90 for a phone match), `reason`, `name_seen`. A record with no usable phone or the firm's own number gets `person_id` null and the reason says why |
+| `hp.match_review` | Something a human should look at | `automated_caller` (2), `shared_phone` (0), `no_valid_phone` (0) |
+| `hp.employees` / `employee_identifiers` | A staff member / each system's id for them | From `ops.staff`; Jigglewire extension, TalkEgg mailbox, email, Lawllama user id |
+| `hp.contact_events` | One call, voicemail, form, lead, matter or ad charge | UTC `occurred_at`, `office_hours` (Mon-Fri 8-6 Chicago), `employee_id`, `handled_by`, `channel`, `amount_usd` |
+| `hp.call_legs` | One ring of a Jigglewire call | Who it rang, in order, and the result: this is "who missed it" |
+| `hp.person_summary`, `hp.lost_opportunities`, `hp.inbound_calls` (views, `sql/009`) | Per person / per lost person / per inbound call | Computed at query time from the tables above. To change a view's columns, drop it first by hand (`apply-sql` refuses drops) |
+
+Decisions and the evidence behind them:
+- **Phone-only matching is safe on this data.** Across the 1,680 people named by two or more systems, zero have conflicting names, and no phone has two Lawllama leads. 195 Retained Lawllama leads are exactly the 195 people who also have a Docketmonster matter; the other 64 matters are clients with no lead.
+- **"WIRELESS CALLER" is not a robocall.** It is the carrier's generic caller-ID name on 334 different phones. Only two numbers are automated (`+18475550166`, 171 calls; `+12135550168` "AUTO NOTIFY", 120 calls); they are flagged because at least half of their Ringsnitch `ai_summary` texts say automated/robocall and intake never heard from them.
+- **Jigglewire `result: "Call connected"` on an inbound call means the answering service, not a person.** All 1,217 have no `extension` and a final leg of type `Forwarded` to "After-hours answering" (+1 847 555 0190). 322 of them arrived during office hours after the intake phones rang out. `handled_by` therefore is `employee`, `answering_service`, `voicemail` or `missed`; do not use `answered` for "someone at the firm took it".
+- **Timestamps.** Jigglewire's `-07:00` label is accurate as an instant (2,991 inbound calls paired with Ringsnitch by phone differ by exactly 0 minutes). Blankety's zone-less times are 4 hours behind Lawllama's UTC on all 454 submissions, taken as US Eastern (a fixed UTC-4 looks identical until clocks change on 1 Nov; recheck then). Docketmonster is assumed Chicago. See `src/lib/dates.js`.
+- **The same call has matching ids in two systems.** Ringsnitch `CAL3F5DC709BA` and Jigglewire `JICAL3F5DC709BA` share a suffix, so telephony events can be paired exactly (not yet done: both are kept as events; count inbound calls from Jigglewire, use Ringsnitch for the ad channel).
+- **Staff attribution check.** Answered inbound calls by employee in `contact_events` equal the raw call log exactly: Devin 729, Marcus 570, Katherine 246, Rosa 37.
+
+### Lost opportunities (`hp.lost_opportunities`, one row per person)
+| `loss_type` | Rule | People (2026-10-16) |
+|---|---|---|
+| `unreturned_call` | Called, nobody at the firm spoke to them, and no employee contact since the last failed call | 282 (only 24 were ever dialled by an employee) |
+| `lead_not_called` | Open Lawllama lead with no employee contact at all | 26 |
+| `lead_lost` | Lawllama status lost; `reason_bucket` groups the 61 free-text lost reasons: `slow_or_unreachable` 284, `went_elsewhere` 191, `price` 113, `not_a_fit` 528 | 1,116 |
+
+Money: Lawllama `estimated_value` is an estimate entered by intake, not revenue (everyone on the list adds up to $6.67M; use it for ranking, not as a forecast). `ad_spend` is exact (`ops.lsa_charges`: $24,716 on 174 charged leads, $14,926 of it on 107 charges to 106 people who never became clients).
+
+Caveats found while building it:
+- Lawllama `last_contacted_at` is empty on all 1,489 leads and `converted` is false on all, so neither is used. Open leads are all under 14 days old, so there is no "stale lead" tier yet.
+- 14 leads marked Contacted or Consult scheduled (and all 13 New ones) have no employee call logged in Jigglewire: they may have been contacted by email or another phone, so `lead_not_called` shows who has no logged call, not proof nobody followed up.
+- `lost_reason` is free text and does not follow the status (the same reasons appear under Not retained, referred out and no-show), and some contradict the calls (a lead marked "wrong number" called 11 times). Treat the bucket as a hint.
+- 120 callers appear only in Ringsnitch and never reached the Jigglewire phones; they are not judged (possibly the main line TRK105 or TalkEgg, unresolved).

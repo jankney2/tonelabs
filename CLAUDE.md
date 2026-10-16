@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-Step 1 is done: a Hono Worker with Basic Auth, a `/api/health` DB check, a placeholder page, a read-only DB audit script and Jest tests. Not built yet: ingestion, reconciliation, dashboard. Other files: `BRIEF.md` (the assignment, project ID 9960-0186, read it first), `ideas.md` (the user's notes), `.env` (credentials; don't print it, commit it, or zip it), `.dev.vars` (git-ignored local Worker secrets).
+Step 1 is done: a Hono Worker with Basic Auth, a `/api/health` DB check, a placeholder page, a read-only DB audit script and Jest tests. Ingestion is done for the reachable systems and identity resolution (phone only) is built; not built yet: event reconciliation, the dashboard. Other files: `BRIEF.md` (the assignment, project ID 9960-0186, read it first), `ideas.md` (the user's notes), `.env` (credentials; don't print it, commit it, or zip it), `.dev.vars` (git-ignored local Worker secrets).
 
 ## Commands
 
@@ -49,6 +49,10 @@ We are now connecting each system in turn, using Ringsnitch as the template. For
 5. Jest tests with a fake fetch/db, a row in `docs/systems.md` (access, fields, quirks found), and a probe or live run to check the real response shapes before designing tables (docs often omit fields).
 
 Done so far: Ringsnitch (calls, trackers, users; also on the cron), Jigglewire (call log, extensions, queue presence, voicemail; script only, not yet on the cron), Lawllama (leads with contacts, lead statuses, users; script only; contact SSN/DOB/immigration status are redacted and never stored; monthly record quota, so sync incrementally), Blankety (forms, questions, submissions; script only; 1,000 calls/day), Docketmonster (matters over SOAP via `soap.js`, no XML library; script only; whole history is one call). Branch per system: `feature/<system>-integration`.
+
+## Identity resolution (done: phone only)
+
+`npm run resolve` (`--full` rebuilds) links every raw record to a person by normalised phone and writes `hp.people`, `person_links` (method, confidence, reason), `match_review`, `employees`, `contact_events`, `call_legs`; views `person_summary`, `lost_opportunities`, `inbound_calls` (`sql/008`, `sql/009`). Code in `src/identity/` (`rules.js` pure rules, `sources.js` what to read per source, `resolve.js` the run), dates in `src/lib/dates.js`. Hourly cron at :15 is coded but not deployed. Details and evidence: the last section of `docs/systems.md`. Dashboard rule agreed: identity and attribution are materialised by the job, dashboard numbers are computed at request time from those tables.
 
 ## Planned architecture (agreed, not yet built; full plan in `~/.claude/plans/make-note-of-the-witty-unicorn.md`)
 

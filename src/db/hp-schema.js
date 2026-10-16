@@ -77,3 +77,11 @@ export const rawLawllamaLeadStatuses = rawTable('raw_lawllama_lead_statuses');
 export const rawLawllamaLeadStatusesHistory = historyTable('raw_lawllama_lead_statuses_history');
 export const rawLawllamaUsers = rawTable('raw_lawllama_users');
 export const rawLawllamaUsersHistory = historyTable('raw_lawllama_users_history');
+
+// Blankety (sql/006_raw_blankety.sql): one table per endpoint. Questions have source_id "<formId>:<qid>".
+export const rawBlanketyForms = rawTable('raw_blankety_forms');
+export const rawBlanketyFormsHistory = historyTable('raw_blankety_forms_history');
+export const rawBlanketyQuestions = rawTable('raw_blankety_questions');
+export const rawBlanketyQuestionsHistory = historyTable('raw_blankety_questions_history');
+export const rawBlanketySubmissions = rawTable('raw_blankety_submissions');
+export const rawBlanketySubmissionsHistory = historyTable('raw_blankety_submissions_history');

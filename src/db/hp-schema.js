@@ -34,3 +34,26 @@ export const rawRingsnitchCallsHistory = hp.table('raw_ringsnitch_calls_history'
   firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'string' }).notNull(),
   supersededAt: timestamp('superseded_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 });
+
+// Trackers and users share the calls table shape (one row per id + a history table).
+const rawTable = (name) => hp.table(name, {
+  sourceId: text('source_id').primaryKey(),
+  payload: jsonb().notNull(),
+  contentHash: text('content_hash').notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+  notInLatestPull: boolean('not_in_latest_pull').notNull().default(false),
+});
+const historyTable = (name) => hp.table(name, {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  sourceId: text('source_id').notNull(),
+  payload: jsonb().notNull(),
+  contentHash: text('content_hash').notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'string' }).notNull(),
+  supersededAt: timestamp('superseded_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+});
+
+export const rawRingsnitchTrackers = rawTable('raw_ringsnitch_trackers');
+export const rawRingsnitchTrackersHistory = historyTable('raw_ringsnitch_trackers_history');
+export const rawRingsnitchUsers = rawTable('raw_ringsnitch_users');
+export const rawRingsnitchUsersHistory = historyTable('raw_ringsnitch_users_history');

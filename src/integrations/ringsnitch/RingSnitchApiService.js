@@ -43,7 +43,7 @@ export class RingSnitchApiService extends ExternalApiService {
     return this.getJson(this.path(`calls/${id}.json`), { query: { fields: fields.join(',') } });
   }
 
-  getTrackers() { return this.getJson(this.path('trackers.json')); }
-  getUsers() { return this.getJson(this.path('users.json')); }
+  getTrackers({ page = 1, perPage = 100 } = {}) { return this.getJson(this.path('trackers.json'), { query: { page, per_page: perPage } }); }
+  getUsers({ page = 1, perPage = 100 } = {}) { return this.getJson(this.path('users.json'), { query: { page, per_page: perPage } }); }
   getChangelog() { return this.getJson(this.path('changelog.json')); }
 }

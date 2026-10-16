@@ -8,3 +8,7 @@ directory = "./public"
 binding = "ASSETS"
 run_worker_first = true
 preview_urls = false
+
+# Keep Ringsnitch data in sync. Needs Worker secrets RINGSNITCH_READKEY, RINGSNITCH_ACCOUNT_ID, DATABASE_URL.
+[triggers]
+crons = ["*/30 * * * *"]

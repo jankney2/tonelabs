@@ -43,7 +43,8 @@ export class ExternalApiService {
     this.defaultHeaders = { Accept: "application/json", ...headers };
     this.timeoutMs = timeoutMs;
     this.maxRetries = maxRetries;
-    this.fetchImpl = fetchImpl;
+    // Call fetch unbound: Workers throw "Illegal invocation" if fetch runs with another `this`.
+    this.fetchImpl = (...args) => fetchImpl(...args);
   }
 
   buildUrl(path, query = {}) {

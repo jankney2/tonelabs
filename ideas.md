@@ -4,7 +4,7 @@
 -when a new record is ingested, check all ? systems to make sure it is unique- unique identifiers include phone number (best?), email (second best), then name matching (less confident)
 
 - which system is the most true? 
-- 
+- Jigglewire and Ringsnitch look like they have some data overlap (good: we can cross-check records between them and use one to confirm/fill the other)
 
 We're a general-practice law firm. Our phones and intake run on a pile of systems that different people set up over the years. None of them connect properly to each other, and each one has its own idea of who contacted us and what happened next. When I ask a simple question I get a different answer depending on who I ask and what system they are looking at.
 

@@ -25,3 +25,12 @@ export const rawRingsnitchCalls = hp.table('raw_ringsnitch_calls', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
   notInLatestPull: boolean('not_in_latest_pull').notNull().default(false),
 });
+
+export const rawRingsnitchCallsHistory = hp.table('raw_ringsnitch_calls_history', {
+  id: bigserial({ mode: 'number' }).primaryKey(),
+  sourceId: text('source_id').notNull(),
+  payload: jsonb().notNull(),
+  contentHash: text('content_hash').notNull(),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'string' }).notNull(),
+  supersededAt: timestamp('superseded_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+});

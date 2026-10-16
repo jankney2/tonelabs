@@ -19,3 +19,7 @@ The cron is coded (`src/scheduled.js`, `[triggers]` in `wrangler.toml`) and test
 
 ## Date reconciliation
 Most APIs return dates in different formats and zones. Add a helper (e.g. `src/lib/dates.js`) that normalises any source timestamp to UTC, with the source zone set per system, and use it when reconciling (never in the raw tables). Cover it with tests per source format, DST edges and the Jigglewire -07:00 question (see "Ask Denise"), plus a QA query that compares one contact's timestamps across systems. Also listed in the plan's Verification (QA) section.
+
+## TalkEgg (WIP, blocked on auth)
+- `TalkEggApiService` and `scripts/probe-talkegg.js` exist; no tables, sync or tests yet. Every request to https://talkegg.tone.fyi/cgi-bin/{cdr,vm}.cgi with the `.env` login (HTTP Basic, realm "TalkEgg Admin") returns 401 "invalid user name or password", though the user can log in in the browser. Confirm the account has API access (site says "Egg Pro customers") and which URL the browser login uses; ask Denise if needed. Do not retry in a loop (possible lockout).
+- Docs give no base URL; assumed talkegg.tone.fyi. CDR times are PBX local time (zone unstated); max 31 days per request; vm.cgi CSV layout undocumented.

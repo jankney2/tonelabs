@@ -10,7 +10,8 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "db:pull": "drizzle-kit pull",
     "db:apply": "node scripts/apply-sql.js",
-    "sync:ringsnitch": "node scripts/sync-ringsnitch.js"
+    "sync:ringsnitch": "node scripts/sync-ringsnitch.js",
+    "sync:jigglewire": "node scripts/sync-jigglewire.js"
   },
   "jest": {
     "transform": {}

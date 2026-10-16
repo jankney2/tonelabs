@@ -38,6 +38,18 @@ A consulting-style engagement for a law firm, Harlow & Pike. The job has three p
 - Office hours are Mon-Fri 8-6 Chicago time. Intake staff are Devin, Katherine, Marcus and Rosa. Gloria covers the front desk on weekday mornings.
 - If a login fails, ask Denise. Never click "reset password" on anything, because it emails Dana.
 
+## Building the integrations (current phase)
+
+We are now connecting each system in turn, using Ringsnitch as the template. For every system:
+
+1. A class in `src/integrations/<system>/<System>ApiService.js` that **extends `ExternalApiService`**. Put anything system-specific there: base URL, auth, paging, rate-limit spacing, one method per endpoint. Static auth (bearer/header/basic/query) is just constructor config; anything needing a round trip (Jigglewire's OAuth JWT exchange) overrides `authenticate()`.
+2. **One raw table per endpoint**, `hp.raw_<system>_<endpoint>` plus a `_history` twin, created by the next numbered file in `sql/` (apply with `npm run db:apply -- sql/NNN_x.sql`) and mirrored in `src/db/hp-schema.js`. Payload is stored exactly as the API returned it (`source_id`, `payload`, `content_hash`, first/last seen, `not_in_latest_pull`). Never reshape in the raw tables; reconciliation comes later.
+3. **Sync modules** in the same folder that land data through `src/integrations/landRaw.js` (`landRows`, `landSnapshot`, `flagMissing`), so every system follows the same idempotent rules. Complete lists use `landSnapshot`; date-windowed lists use `landRows` and flag missing rows only after a complete full sync.
+4. **A script** `scripts/sync-<system>.js` (`--full`, `--max-pages`) and an `npm run sync:<system>` entry; requests are audited to `hp.integration_logs` through the service's logger.
+5. Jest tests with a fake fetch/db, a row in `docs/systems.md` (access, fields, quirks found), and a probe or live run to check the real response shapes before designing tables (docs often omit fields).
+
+Done so far: Ringsnitch (calls, trackers, users; also on the cron), Jigglewire (call log, extensions, queue presence, voicemail; script only, not yet on the cron). Branch per system: `feature/<system>-integration`.
+
 ## Planned architecture (agreed, not yet built; full plan in `~/.claude/plans/make-note-of-the-witty-unicorn.md`)
 
 - Backend: Hono on the Cloudflare Worker (Express-style routing, native to Workers), deployed with `wrangler deploy`. Express with a tunnel was rejected because `APP_URL` is the Worker and the app has to stay up after hand-in.

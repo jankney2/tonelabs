@@ -3,7 +3,7 @@
 //   table  = the source_table name stored in person_links / contact_events
 //   query  = SQL returning source_id, phone, name, occurred_at (text) and anything `map` needs; {LIMIT} is filled in
 //   map    = row -> { kind, direction?, answered, outcome, durationS, channel, amountUsd, employeeId, legs }
-import { callEmployee, callLegs, handledBy, isAnsweredResult } from './rules.js';
+import { callEmployee, callLegs, handledBy, isAnsweredResult, messageCategory, CHAT_LEAD_PHONE_SQL, CHAT_LEAD_NAME_SQL } from './rules.js';
 
 const unlinked = (table) => `LEFT JOIN hp.person_links l ON l.source_table = '${table}' AND l.source_id = r.source_id WHERE l.id IS NULL`;
 
@@ -91,5 +91,19 @@ export const SOURCES = [
       FROM ops.lsa_charges r LEFT JOIN hp.person_links l ON l.source_table = 'ops_lsa_charges' AND l.source_id = r.lead_id
       WHERE l.id IS NULL ORDER BY r.lead_id LIMIT {LIMIT}`,
     map: (r) => ({ kind: 'ad_charge', channel: 'Google Local Services', outcome: r.outcome, amountUsd: r.amount === null ? null : Number(r.amount) }),
+  },
+  {
+    // After-hours answering service. Times have no zone; see SOURCE_ZONES. Operators (DS, JT, RM, KL) are the service's people,
+    // not firm employees, so employee_id stays empty. A "new chat lead" recording is about someone else: the lead's number and
+    // name are read out in the text, so they replace the robot's callback number (link confidence is lowered, see linkBatch).
+    table: 'raw_mostlyanswered_messages',
+    query: `SELECT r.source_id,
+      COALESCE(substring(r.payload->>'Message' from '${CHAT_LEAD_PHONE_SQL}'), r.payload->>'Callback Number') AS phone,
+      CASE WHEN r.payload->>'Message' ~* 'new chat lead' THEN substring(r.payload->>'Message' from '${CHAT_LEAD_NAME_SQL}') ELSE r.payload->>'Caller Name' END AS name,
+      to_char(to_timestamp(r.payload->>'Date/Time Taken', 'FM MM/DD/YY HH12:MI AM'), 'YYYY-MM-DD"T"HH24:MI:SS') AS occurred_at,
+      r.payload->>'Message' AS message,
+      CASE WHEN substring(r.payload->>'Message' from '${CHAT_LEAD_PHONE_SQL}') IS NOT NULL THEN 'transcript' END AS phone_origin
+      FROM hp.raw_mostlyanswered_messages r ${unlinked('raw_mostlyanswered_messages')} ORDER BY r.source_id LIMIT {LIMIT}`,
+    map: (r) => ({ kind: 'message', answered: false, handledBy: 'answering_service', outcome: messageCategory(r.message), channel: 'Answering service' }),
   },
 ];

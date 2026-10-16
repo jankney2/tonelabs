@@ -7,6 +7,7 @@
 export const SOURCE_ZONES = {
   raw_blankety_submissions: 'America/New_York',
   raw_docketmonster_matters: 'America/Chicago', // firm local time (assumed, see docs/todo.md)
+  raw_mostlyanswered_messages: 'America/Chicago', // service time, no zone in the CSV (assumed; see docs/todo.md QA)
 };
 
 /** Offset in minutes of `zone` from UTC at the instant `utcMs`. */

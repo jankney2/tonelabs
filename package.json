@@ -11,7 +11,8 @@
     "db:pull": "drizzle-kit pull",
     "db:apply": "node scripts/apply-sql.js",
     "sync:ringsnitch": "node scripts/sync-ringsnitch.js",
-    "sync:jigglewire": "node scripts/sync-jigglewire.js"
+    "sync:jigglewire": "node scripts/sync-jigglewire.js",
+    "sync:lawllama": "node scripts/sync-lawllama.js"
   },
   "jest": {
     "transform": {}

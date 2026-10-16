@@ -16,3 +16,17 @@ The cron is coded (`src/scheduled.js`, `[triggers]` in `wrangler.toml`) and test
 - Ringsnitch has only four users (Dana, Denise, "Front Office", Brainfog Media) and none are intake staff, and calls carry no user field. Confirm that who handled a call comes from Jigglewire/TalkEgg, not Ringsnitch.
 - Jigglewire timestamps all say -07:00 (Pacific) although the office is in Chicago. Are the phone system clocks set to the wrong zone, or is it just the label? Rosa is switched off "Receive queue calls" on the Intake queue: deliberate?
 - Existing open questions are in `docs/systems.md` (logins, Mostlyanswered file, LSA leads, recordings, Blankety to Lawllama).
+
+## Date reconciliation
+Most APIs return dates in different formats and zones. Add a helper (e.g. `src/lib/dates.js`) that normalises any source timestamp to UTC, with the source zone set per system, and use it when reconciling (never in the raw tables). Cover it with tests per source format, DST edges and the Jigglewire -07:00 question (see "Ask Denise"), plus a QA query that compares one contact's timestamps across systems. Also listed in the plan's Verification (QA) section.
+
+## Ask Denise / Lawllama support
+- What is Lawllama's monthly record quota and how much is used? The first full sync read about 3,000 records plus probes; confirm that is a small share before putting the sync on the cron. Support: (315) 597-0959 (they confirm changes with the account owner by email).
+- Worker secret needed when Lawllama joins the cron: `LAWLLAMA_BEARER`.
+- Lawllama leads have `signed_on_call`, `converted` and `retained_matter`; do they agree with status `Retained`, and with Docketmonster? (check at reconciliation)
+
+## QA: audit every API's rate limits and quotas
+Before hand-in (and before putting any sync on the cron), work out for each system whether our sync pattern can hit its limits, and record the numbers in `docs/systems.md`:
+- Ringsnitch: 1,000 requests/hour per account, shared by all keys. Jigglewire: 10 requests/minute. Lawllama: 120 requests/60 s **plus a monthly record quota** (once exceeded every request returns 429 `quota_exceeded`; waiting does not help; fixing it means phoning support on (315) 597-0959, who confirm with the account owner by email). Blankety: 1,000 calls/day. TalkEgg and Docketmonster: none stated.
+- For each: requests and records per full sync and per incremental sync (from `hp.integration_logs`), how often the cron runs them, worst case per hour/day/month, and the headroom. Lawllama's monthly quota is unknown, so measure records per sync and ask Denise/support what the quota is and how much of it is used.
+- Check the cron intervals do not overlap and that the shared Ringsnitch budget leaves room for manual runs and probes.

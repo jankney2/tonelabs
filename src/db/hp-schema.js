@@ -67,3 +67,13 @@ export const rawJigglewireVoicemails = rawTable('raw_jigglewire_voicemails');
 export const rawJigglewireVoicemailsHistory = historyTable('raw_jigglewire_voicemails_history');
 export const rawJigglewireQueuePresence = rawTable('raw_jigglewire_queue_presence');
 export const rawJigglewireQueuePresenceHistory = historyTable('raw_jigglewire_queue_presence_history');
+
+// Lawllama (sql/005_raw_lawllama.sql): one table per endpoint. Contacts never hold SSN/date of birth/immigration status.
+export const rawLawllamaLeads = rawTable('raw_lawllama_leads');
+export const rawLawllamaLeadsHistory = historyTable('raw_lawllama_leads_history');
+export const rawLawllamaContacts = rawTable('raw_lawllama_contacts');
+export const rawLawllamaContactsHistory = historyTable('raw_lawllama_contacts_history');
+export const rawLawllamaLeadStatuses = rawTable('raw_lawllama_lead_statuses');
+export const rawLawllamaLeadStatusesHistory = historyTable('raw_lawllama_lead_statuses_history');
+export const rawLawllamaUsers = rawTable('raw_lawllama_users');
+export const rawLawllamaUsersHistory = historyTable('raw_lawllama_users_history');

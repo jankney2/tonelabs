@@ -7,16 +7,20 @@
     "dev": "wrangler dev",
     "deploy": "node scripts/with-env.js wrangler deploy",
     "audit": "node scripts/audit-db.js",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "db:pull": "drizzle-kit pull",
+    "db:apply": "node scripts/apply-sql.js"
   },
   "jest": {
     "transform": {}
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13"
   },
   "devDependencies": {
+    "drizzle-kit": "^0.31.11",
     "jest": "^30.5.2",
     "wrangler": "^4.151.1"
   }

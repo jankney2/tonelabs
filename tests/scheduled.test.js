@@ -27,3 +27,18 @@ test('skips the half-hour run outside office hours, runs it inside', async () =>
   await runScheduledSync(env, { sync, now: new Date('2026-10-16T03:00:00Z') }); // top of the hour always runs
   expect(sync).toHaveBeenCalledTimes(2);
 });
+
+test('syncs trackers and users only in the two daily slots, and a failure there does not hide the calls result', async () => {
+  const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const syncReference = jest.fn(async () => { throw new Error('nope'); });
+  const sync = async () => ({ fetched: 3 });
+  // Chicago is UTC-5 (CDT) on Oct 16 2026: 13:00Z = 08:00, 18:00Z = 13:00, 17:00Z = 12:00, 13:30Z = 08:30.
+  for (const t of ['13:00', '18:00']) {
+    expect(await runScheduledSync(env, { sync, syncReference, now: new Date(`2026-10-16T${t}:00Z`) })).toEqual({ fetched: 3 });
+  }
+  expect(syncReference).toHaveBeenCalledTimes(2);
+  await runScheduledSync(env, { sync, syncReference, now: new Date('2026-10-16T17:00:00Z') });
+  await runScheduledSync(env, { sync, syncReference, now: new Date('2026-10-16T13:30:00Z') });
+  expect(syncReference).toHaveBeenCalledTimes(2);
+  err.mockRestore();
+});

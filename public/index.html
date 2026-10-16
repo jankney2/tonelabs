@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harlow &amp; Pike</title>
+</head>
+<body>
+  <h1>Harlow &amp; Pike</h1>
+  <p>Hello world. Dashboard coming soon.</p>
+  <p id="health">Checking database…</p>
+  <script>
+    fetch('/api/health').then(r => r.json())
+      .then(j => document.getElementById('health').textContent = j.ok ? 'Database: connected' : 'Database: problem')
+      .catch(() => document.getElementById('health').textContent = 'Database: problem');
+  </script>
+</body>
+</html>

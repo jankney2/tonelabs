@@ -1,0 +1,10 @@
+name = "tone-fyi-cand-jacob-ankney"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+# Static dashboard files. run_worker_first so Basic Auth covers them too.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+preview_urls = false

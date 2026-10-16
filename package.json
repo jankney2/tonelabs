@@ -1,0 +1,23 @@
+{
+  "name": "harlow-pike",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "node scripts/with-env.js wrangler deploy",
+    "audit": "node scripts/audit-db.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+  },
+  "jest": {
+    "transform": {}
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "wrangler": "^4.151.1"
+  }
+}

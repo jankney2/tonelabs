@@ -25,6 +25,11 @@ Most APIs return dates in different formats and zones. Add a helper (e.g. `src/l
 - Worker secret needed when Lawllama joins the cron: `LAWLLAMA_BEARER`.
 - Lawllama leads have `signed_on_call`, `converted` and `retained_matter`; do they agree with status `Retained`, and with Docketmonster? (check at reconciliation)
 
+## Ask Denise / Blankety
+- Which time zone is the Blankety account set to? `created_at` has no zone; compare against the matching Lawllama lead `created_at` (UTC) at reconciliation to infer it.
+- Worker secret needed when Blankety joins the cron: `BLANKETY_KEY` (1,000 calls/day account-wide; an incremental sync is about 4 calls).
+- Do all 454 submissions match a Lawllama web-form lead by phone/email, and how long does each take to arrive? (check at reconciliation)
+
 ## QA: audit every API's rate limits and quotas
 Before hand-in (and before putting any sync on the cron), work out for each system whether our sync pattern can hit its limits, and record the numbers in `docs/systems.md`:
 - Ringsnitch: 1,000 requests/hour per account, shared by all keys. Jigglewire: 10 requests/minute. Lawllama: 120 requests/60 s **plus a monthly record quota** (once exceeded every request returns 429 `quota_exceeded`; waiting does not help; fixing it means phoning support on (315) 597-0959, who confirm with the account owner by email). Blankety: 1,000 calls/day. TalkEgg and Docketmonster: none stated.

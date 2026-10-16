@@ -57,3 +57,13 @@ export const rawRingsnitchTrackers = rawTable('raw_ringsnitch_trackers');
 export const rawRingsnitchTrackersHistory = historyTable('raw_ringsnitch_trackers_history');
 export const rawRingsnitchUsers = rawTable('raw_ringsnitch_users');
 export const rawRingsnitchUsersHistory = historyTable('raw_ringsnitch_users_history');
+
+// Jigglewire (sql/004_raw_jigglewire.sql): same shape again, one table per endpoint.
+export const rawJigglewireCallLog = rawTable('raw_jigglewire_call_log');
+export const rawJigglewireCallLogHistory = historyTable('raw_jigglewire_call_log_history');
+export const rawJigglewireExtensions = rawTable('raw_jigglewire_extensions');
+export const rawJigglewireExtensionsHistory = historyTable('raw_jigglewire_extensions_history');
+export const rawJigglewireVoicemails = rawTable('raw_jigglewire_voicemails');
+export const rawJigglewireVoicemailsHistory = historyTable('raw_jigglewire_voicemails_history');
+export const rawJigglewireQueuePresence = rawTable('raw_jigglewire_queue_presence');
+export const rawJigglewireQueuePresenceHistory = historyTable('raw_jigglewire_queue_presence_history');

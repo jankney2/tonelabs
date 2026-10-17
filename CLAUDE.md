@@ -54,6 +54,10 @@ Done so far: Ringsnitch (calls, trackers, users; also on the cron), Jigglewire (
 
 `npm run resolve` (`--full` rebuilds) links every raw record to a person by normalised phone and writes `hp.people`, `person_links` (method, confidence, reason), `match_review`, `employees`, `contact_events`, `call_legs`; views `person_summary`, `lost_opportunities`, `inbound_calls`, `message_callbacks` (`sql/008`, `sql/009`, `sql/011`; `sql/012` adds loss_type `chat_lead_unanswered` to `lost_opportunities`). Code in `src/identity/` (`rules.js` pure rules, `sources.js` what to read per source, `resolve.js` the run), dates in `src/lib/dates.js`. Hourly cron at :15 is coded but not deployed. Details and evidence: the last section of `docs/systems.md`. Dashboard rule agreed: identity and attribution are materialised by the job, dashboard numbers are computed at request time from those tables.
 
+## Dashboard
+
+Built: read-only endpoints in `src/dashboard/` and a two-tab page in `public/` (Missed opportunities, Front desk productivity). See `docs/dashboard.md`. Node 24 is needed locally (`~/.nvm/versions/node/v24.21.0`; the default `node` is v14).
+
 ## Planned architecture (agreed, not yet built; full plan in `~/.claude/plans/make-note-of-the-witty-unicorn.md`)
 
 - Backend: Hono on the Cloudflare Worker (Express-style routing, native to Workers), deployed with `wrangler deploy`. Express with a tunnel was rejected because `APP_URL` is the Worker and the app has to stay up after hand-in.

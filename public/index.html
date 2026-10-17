@@ -3,16 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Harlow &amp; Pike</title>
+  <title>Harlow &amp; Pike intake dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <h1>Harlow &amp; Pike</h1>
-  <p>Hello world. Dashboard coming soon.</p>
-  <p id="health">Checking database…</p>
-  <script>
-    fetch('/api/health').then(r => r.json())
-      .then(j => document.getElementById('health').textContent = j.ok ? 'Database: connected' : 'Database: problem')
-      .catch(() => document.getElementById('health').textContent = 'Database: problem');
-  </script>
+  <header>
+    <h1>Harlow &amp; Pike</h1>
+    <p id="asof" class="muted">Loading…</p>
+  </header>
+
+  <form id="filters" aria-label="Filters">
+    <label>From <input type="date" name="from"></label>
+    <label>To <input type="date" name="to"></label>
+    <span class="presets">
+      <button type="button" data-preset="mtd">Month to date</button>
+      <button type="button" data-preset="7d">Last 7 days</button>
+      <button type="button" data-preset="lastmonth">Last month</button>
+    </span>
+    <button type="button" id="reset">Reset all</button>
+    <label>Employee<select name="employee"><option value="">Everyone</option></select></label>
+    <label>Lead source <select name="source"><option value="">All sources</option></select></label>
+    <label>Person status
+      <select name="stage"><option value="">All</option><option value="caller">Caller</option><option value="lead">Lead</option><option value="client">Client</option></select>
+    </label>
+    <label>Time of day
+      <select name="hours"><option value="any">Any time</option><option value="in">Office hours</option><option value="out">After hours</option></select>
+    </label>
+  </form>
+  <p id="error" class="error" hidden></p>
+
+  <nav role="tablist">
+    <button role="tab" data-tab="missed" aria-selected="true">Missed opportunities</button>
+    <button role="tab" data-tab="team" aria-selected="false">Front desk productivity</button>
+  </nav>
+
+  <main>
+    <section id="tab-missed">
+      <div class="tiles" id="missed-tiles"></div>
+      <div class="grid">
+        <div class="card"><h2>Lead funnel</h2><canvas id="chart-funnel"></canvas></div>
+        <div class="card"><h2>Why leads were lost</h2><canvas id="chart-reasons"></canvas></div>
+        <div class="card wide"><h2>People lost by lead source</h2><canvas id="chart-sources"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>When calls go unanswered</h2>
+        <p class="muted">Share of inbound calls no person answered, by weekday and hour (Chicago time). Darker is worse; the number is calls that failed. Office hours are Mon-Fri 8-6.</p>
+        <div class="scroll"><table id="heatmap" class="heat"></table></div>
+      </div>
+      <div class="card">
+        <h2>Who to call back</h2>
+        <p class="muted">People we can still reach, newest first. Leave "Lead source" and "Person status" empty to see everyone.</p>
+        <div class="scroll"><table id="people-table"></table></div>
+      </div>
+    </section>
+
+    <section id="tab-team" hidden>
+      <div class="tiles" id="team-tiles"></div>
+      <div class="grid">
+        <div class="card wide"><h2>Calls that rang each person</h2><canvas id="chart-employees"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Intake team</h2>
+        <div class="scroll"><table id="employee-table"></table></div>
+        <p class="muted" id="team-note"></p>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="drill">
+    <div class="dialog-head"><h2 id="drill-title"></h2><button type="button" id="drill-close">Close</button></div>
+    <p class="muted" id="drill-meta"></p>
+    <div class="scroll"><table id="drill-table"></table></div>
+  </dialog>
+
+  <dialog id="person">
+    <div class="dialog-head"><h2 id="person-name"></h2><button type="button" id="person-close">Close</button></div>
+    <p class="muted" id="person-meta"></p>
+    <h3>Timeline</h3>
+    <div class="scroll"><table id="person-events"></table></div>
+    <h3>Why these records are this person</h3>
+    <div class="scroll"><table id="person-links"></table></div>
+  </dialog>
+
+  <footer class="muted">
+    Figures are rebuilt from the firm's systems. Gloria's front desk phone (TalkEgg) is not connected yet, so "front desk" here is the intake phone team.
+    The Employee filter applies to the Front desk tab; the Lead source, Person status and Time of day filters apply where the data has them.
+  </footer>
+
+  <script src="/vendor/chart.umd.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

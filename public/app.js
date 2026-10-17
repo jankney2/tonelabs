@@ -34,9 +34,14 @@ function table(id, columns, rows, empty) {
   t.append(body);
 }
 
+/** items: [number, label, bad?, drill?]; a tile with a drill is a button that opens the records behind the number. */
 function tiles(id, items) {
-  document.getElementById(id).replaceChildren(...items.map(([num, label, bad]) =>
-    el('div', { class: bad ? 'tile bad' : 'tile' }, el('div', { class: 'num' }, num), el('div', { class: 'label' }, label))));
+  document.getElementById(id).replaceChildren(...items.map(([num, label, bad, drill]) => {
+    const node = el(drill ? 'button' : 'div', { class: bad ? 'tile bad' : 'tile', ...(drill ? { type: 'button', title: 'Show these' } : {}) },
+      el('div', { class: 'num' }, num), el('div', { class: 'label' }, label));
+    if (drill) node.addEventListener('click', () => openDrill(...drill));
+    return node;
+  }));
 }
 
 // One Chart.js instance per canvas; drawing again replaces the old one.
@@ -48,6 +53,8 @@ function chart(id, config) {
   Chart.defaults.borderColor = css.getPropertyValue('--line');
   charts[id] = new Chart(document.getElementById(id), config);
 }
+/** Chart.js onClick that calls fn(index, datasetIndex) for the bar or segment under the pointer. */
+const onBar = (fn) => (_ev, hit) => { if (hit.length) fn(hit[0].index, hit[0].datasetIndex); };
 const COLORS = ['#2a5db0', '#c0504d', '#e0a24a', '#4f9d69', '#8064a2', '#7f7f7f'];
 
 // ---- filters <-> URL ----------------------------------------------------------------------------------------------
@@ -117,21 +124,32 @@ function drawMissed(summary, lost, people) {
   const lostPeople = lost.byType.reduce((n, r) => n + r.people, 0);
   const lostValue = lost.byType.reduce((n, r) => n + r.est_value, 0);
   tiles('missed-tiles', [
-    [int.format(calls.inbound - calls.answered), `of ${int.format(calls.inbound)} inbound calls never reached a person (${pct(calls.inbound - calls.answered, calls.inbound)})`, true],
-    [int.format(calls.failed_in_hours), 'of those came in during office hours', true],
-    [int.format(lostPeople), `people lost${lostValue ? `, est. ${usd.format(lostValue)} in case value` : ''}`],
-    [int.format(funnel.retained), `retained from ${int.format(funnel.leads)} new leads (${pct(funnel.retained, funnel.leads)})`],
+    [int.format(calls.inbound - calls.answered), `of ${int.format(calls.inbound)} inbound calls never reached a person (${pct(calls.inbound - calls.answered, calls.inbound)})`, true,
+      ['Inbound calls no person answered', 'calls', { handled_by: 'failed' }]],
+    [int.format(calls.failed_in_hours), 'of those came in during office hours', true,
+      // with "After hours" chosen this number is 0 and there is nothing to list (forcing hours=in would show calls the tile does not count)
+      calls.failed_in_hours && form.elements.hours.value !== 'out' ? ['Unanswered calls during office hours', 'calls', { handled_by: 'failed', hours: 'in' }] : undefined],
+    [int.format(lostPeople), `people lost${lostValue ? `, est. ${usd.format(lostValue)} in case value` : ''}`, false,
+      ['People lost', 'lost', {}]],
+    [int.format(funnel.retained), `retained from ${int.format(funnel.leads)} new leads (${pct(funnel.retained, funnel.leads)})`, false,
+      ['Leads retained', 'leads', { step: 'retained' }]],
   ]);
 
   chart('chart-funnel', {
     type: 'bar',
     data: { labels: ['New leads', 'Contacted by us', 'Retained'], datasets: [{ data: [funnel.leads, funnel.contacted, funnel.retained], backgroundColor: COLORS[0] }] },
-    options: { indexAxis: 'y', plugins: { legend: { display: false } } },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } }, onClick: onBar((i) => {
+      const step = ['leads', 'contacted', 'retained'][i];
+      openDrill(`Leads: ${['new', 'contacted by us', 'retained'][i]}`, 'leads', { step });
+    }) },
   });
   chart('chart-reasons', {
     type: 'bar',
     data: { labels: lost.byReason.map((r) => REASON_LABELS[r.reason_bucket] ?? r.reason_bucket), datasets: [{ data: lost.byReason.map((r) => r.people), backgroundColor: COLORS[1] }] },
-    options: { indexAxis: 'y', plugins: { legend: { display: false } } },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } }, onClick: onBar((i) => {
+      const r = lost.byReason[i].reason_bucket;
+      openDrill(`Leads lost: ${REASON_LABELS[r] ?? r}`, 'lost', { reason: r });
+    }) },
   });
   chart('chart-sources', {
     type: 'bar',
@@ -139,7 +157,10 @@ function drawMissed(summary, lost, people) {
       labels: lost.bySource.map((r) => r.source),
       datasets: Object.keys(LOSS_LABELS).map((k, i) => ({ label: LOSS_LABELS[k], data: lost.bySource.map((r) => r[k]), backgroundColor: COLORS[i] })),
     },
-    options: { scales: { x: { stacked: true }, y: { stacked: true } } },
+    options: { scales: { x: { stacked: true }, y: { stacked: true } }, onClick: onBar((i, d) => {
+      const type = Object.keys(LOSS_LABELS)[d], source = lost.bySource[i].source;
+      openDrill(`${LOSS_LABELS[type]}: ${source}`, 'lost', { loss_type: type, source });
+    }) },
   });
 
   table('people-table', [
@@ -156,10 +177,10 @@ function drawMissed(summary, lost, people) {
 function drawTeam(summary, employees) {
   const { calls } = summary;
   tiles('team-tiles', [
-    [pct(calls.answered, calls.inbound), `of ${int.format(calls.inbound)} inbound calls answered by a person`],
-    [int.format(calls.answering_service), 'forwarded to the answering service'],
-    [int.format(calls.missed), 'rang out with no answer', true],
-    [int.format(calls.voicemail), 'went to voicemail'],
+    [pct(calls.answered, calls.inbound), `of ${int.format(calls.inbound)} inbound calls answered by a person`, false, ['Calls answered by a person', 'calls', { handled_by: 'employee' }]],
+    [int.format(calls.answering_service), 'forwarded to the answering service', false, ['Calls forwarded to the answering service', 'calls', { handled_by: 'answering_service' }]],
+    [int.format(calls.missed), 'rang out with no answer', true, ['Calls that rang out', 'calls', { handled_by: 'missed' }]],
+    [int.format(calls.voicemail), 'went to voicemail', false, ['Calls that went to voicemail', 'calls', { handled_by: 'voicemail' }]],
   ]);
 
   chart('chart-employees', {
@@ -171,14 +192,14 @@ function drawTeam(summary, employees) {
         { label: 'Rang out', data: employees.map((e) => e.missed), backgroundColor: COLORS[1] },
       ],
     },
-    options: { scales: { x: { stacked: true }, y: { stacked: true } } },
+    options: { scales: { x: { stacked: true }, y: { stacked: true } }, onClick: onBar((i, d) => drillEmployee(employees[i], d === 0 ? 'accepted' : 'missed')) },
   });
 
   table('employee-table', [
     { label: 'Employee', cell: (e) => e.name },
-    { label: 'Calls rung', num: true, cell: (e) => int.format(e.rung) },
-    { label: 'Answered', num: true, cell: (e) => int.format(e.accepted) },
-    { label: 'Rang out', num: true, cell: (e) => int.format(e.missed) },
+    { label: 'Calls rung', num: true, cell: (e) => drillLink(int.format(e.rung), e.rung, () => drillEmployee(e, 'rung')) },
+    { label: 'Answered', num: true, cell: (e) => drillLink(int.format(e.accepted), e.accepted, () => drillEmployee(e, 'accepted')) },
+    { label: 'Rang out', num: true, cell: (e) => drillLink(int.format(e.missed), e.missed, () => drillEmployee(e, 'missed')) },
     { label: 'Answer rate', num: true, cell: (e) => el('span', { class: e.rung && e.accepted / e.rung < 0.6 ? 'bad' : '' }, pct(e.accepted, e.rung)) },
     { label: 'Rung first', num: true, cell: (e) => `${int.format(e.first_rung)} (${pct(e.first_rung_accepted, e.first_rung)} answered)` },
     { label: 'Talk time (min)', num: true, cell: (e) => int.format(e.talk_minutes) },
@@ -212,12 +233,88 @@ function drawHeatmap(rows) {
     const td = el('td', { class: open ? 'cell' : 'cell off' }, r ? r.failed : '');
     if (r) {
       td.title = `${name} ${HOUR_LABELS[h]}: ${r.failed} of ${r.inbound} calls not answered by a person`;
+      td.classList.add('drill');
+      td.addEventListener('click', () => openDrill(`Unanswered calls: ${name} ${HOUR_LABELS[h]}`, 'calls', { handled_by: 'failed', dow, hour: h }));
       td.style.background = `color-mix(in srgb, var(--bad) ${Math.round((r.failed / r.inbound) * 85)}%, transparent)`;
     }
     return td;
   })));
   t.replaceChildren(el('thead', {}, head), el('tbody', {}, body));
 }
+
+// ---- drill-down: the records behind a number ----------------------------------------------------------------------------
+
+// Which filters each kind of list obeys, matching the number it explains (the call totals ignore source and stage, and so on).
+const DRILL_FILTERS = { calls: ['from', 'to', 'hours'], lost: ['from', 'to', 'stage', 'source'], leads: ['from', 'to', 'stage', 'source'] };
+const HANDLED_LABELS = { employee: 'Answered', answering_service: 'Answering service', missed: 'Rang out', voicemail: 'Voicemail' };
+
+const personButton = (r) => (r.person_id ? el('button', { type: 'button', class: 'person', 'data-id': r.person_id }, r.display_name || '(no name)') : '(unknown caller)');
+const day = (iso) => (iso ? new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium' }) : '—');
+
+const DRILL_COLUMNS = {
+  calls: [
+    { label: 'When (Chicago)', cell: (r) => when(r.occurred_at) },
+    { label: 'Caller', cell: personButton },
+    { label: 'Phone', cell: (r) => r.primary_phone ?? '—' },
+    { label: 'What happened', cell: (r) => HANDLED_LABELS[r.handled_by] ?? r.handled_by },
+    { label: 'Person at the firm', cell: (r) => r.employee_name ?? '—' },
+    { label: 'Secs', num: true, cell: (r) => r.duration_s ?? '—' },
+    { label: 'After hours', cell: (r) => (r.office_hours ? '' : 'yes') },
+  ],
+  lost: [
+    { label: 'Name', cell: personButton },
+    { label: 'Phone', cell: (r) => r.primary_phone },
+    { label: 'What happened', cell: (r) => LOSS_LABELS[r.loss_type] + (r.reason_bucket ? ` (${REASON_LABELS[r.reason_bucket]})` : '') },
+    { label: 'Lead source', cell: (r) => r.source },
+    { label: 'Waiting', num: true, cell: (r) => waiting(r.hours_waiting) },
+    { label: 'Est. value', num: true, cell: (r) => (r.estimated_value ? usd.format(r.estimated_value) : '—') },
+    { label: '', cell: (r) => (r.shared_phone ? el('span', { class: 'flag' }, 'shared number') : '') },
+  ],
+  leads: [
+    { label: 'Name', cell: personButton },
+    { label: 'Phone', cell: (r) => r.primary_phone },
+    { label: 'Lead created', cell: (r) => day(r.lead_created_at) },
+    { label: 'Status', cell: (r) => r.status_name ?? '—' },
+    { label: 'Lead source', cell: (r) => r.source },
+    { label: 'Employee contacts', num: true, cell: (r) => r.employee_touches + r.outbound_attempts },
+    { label: 'Est. value', num: true, cell: (r) => (r.estimated_value ? usd.format(r.estimated_value) : '—') },
+  ],
+};
+
+/** A number in a table that opens its records when clicked; zero stays plain text. */
+function drillLink(text, count, open) {
+  if (!count) return text;
+  const b = el('button', { type: 'button', class: 'link', title: 'Show these calls' }, text);
+  b.addEventListener('click', open);
+  return b;
+}
+
+const drillEmployee = (e, leg) => openDrill(`${e.name}: calls ${{ rung: 'rung', accepted: 'answered', missed: 'that rang out' }[leg]}`, 'calls', { employee: e.employee_id, leg });
+
+/** Lists the records behind one number. `extra` adds to (or overrides) the current filters; the list obeys the same filters as the number. */
+async function openDrill(title, kind, extra = {}) {
+  const dlg = document.getElementById('drill');
+  const q = new URLSearchParams(queryString(DRILL_FILTERS[kind]));
+  for (const [k, v] of Object.entries(extra)) q.set(k, v);
+  try {
+    const data = await api(`drill/${kind}`, q.toString());
+    document.getElementById('drill-title').textContent = title;
+    document.getElementById('drill-meta').textContent =
+      `${data.range.from} to ${data.range.to} (Chicago days). ` + (data.total > data.rows.length ? `Showing the newest ${int.format(data.rows.length)} of ${int.format(data.total)}.` : `${int.format(data.total)} in total.`);
+    table('drill-table', DRILL_COLUMNS[kind], data.rows, 'Nothing here for these filters.');
+    if (!dlg.open) dlg.showModal();
+  } catch (err) {
+    const error = document.getElementById('error');
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+}
+
+document.getElementById('drill-table').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-id]');
+  if (b) openPerson(b.dataset.id);
+});
+document.getElementById('drill-close').addEventListener('click', () => document.getElementById('drill').close());
 
 // ---- one person ---------------------------------------------------------------------------------------------------------
 

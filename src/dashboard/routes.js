@@ -32,6 +32,11 @@ export function dashboardRoutes({ getDb, now = () => new Date() }) {
   app.get('/lost/people', endpoint(async (sql, p) => ({ people: await q.getLostPeople(sql, p) })));
   app.get('/calls', endpoint(async (sql, p) => ({ heatmap: await q.getCallHeatmap(sql, p) })));
 
+  // Drill-down: the records behind one number. Each returns {total, rows}, newest first, capped (total is before the cap).
+  app.get('/drill/calls', endpoint(async (sql, p) => q.getCallDrill(sql, p)));
+  app.get('/drill/lost', endpoint(async (sql, p) => q.getLostDrill(sql, p)));
+  app.get('/drill/leads', endpoint(async (sql, p) => q.getLeadDrill(sql, p)));
+
   // One person's timeline. The filters are ignored; the id must be a plain integer.
   app.get('/people/:id', async (c) => {
     const id = c.req.param('id');

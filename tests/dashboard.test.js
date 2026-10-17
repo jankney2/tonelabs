@@ -28,12 +28,20 @@ describe('parseParams', () => {
     // 02:00 UTC on 1 Nov is still 31 Oct in Chicago, so "today" is Oct 31 and the month is October
     const now = new Date('2026-11-01T02:00:00Z');
     expect(chicagoToday(now)).toBe('2026-10-31');
-    expect(parseParams(qs(''), now).params).toMatchObject({ from: '2026-10-01', to: '2026-10-31', hours: 'any', employees: null });
+    expect(parseParams(qs(''), now).params).toMatchObject({ from: '2026-10-01', to: '2026-10-31', hours: 'any', employees: null, reason: null, handledBy: null, step: null, legResult: null, dow: null, hour: null });
   });
 
   test('reads every filter', () => {
     const r = parseParams(qs('from=2026-09-01&to=2026-09-30&employee=6,7&source=Web%20form&stage=lead&loss_type=lead_lost&hours=in'));
-    expect(r.params).toEqual({ from: '2026-09-01', to: '2026-09-30', hours: 'in', stage: 'lead', lossType: 'lead_lost', source: 'Web form', employees: [6, 7] });
+    expect(r.params).toEqual({
+      from: '2026-09-01', to: '2026-09-30', hours: 'in', stage: 'lead', lossType: 'lead_lost', source: 'Web form', employees: [6, 7],
+      reason: null, handledBy: null, step: null, legResult: null, dow: null, hour: null,
+    });
+  });
+
+  test('reads the drill-down filters', () => {
+    const r = parseParams(qs('reason=price&handled_by=failed&step=contacted&leg=missed&dow=0&hour=9'));
+    expect(r.params).toMatchObject({ reason: 'price', handledBy: 'failed', step: 'contacted', legResult: 'Missed', dow: 0, hour: 9 });
   });
 
   test.each([
@@ -46,6 +54,13 @@ describe('parseParams', () => {
     ['loss_type=x', 'loss_type'],
     ['employee=6,abc', 'employee'],
     ['employee=0', 'employee'],
+    ['reason=rude', 'reason'],
+    ['handled_by=robot', 'handled_by'],
+    ['step=won', 'step'],
+    ['leg=ringing', 'leg'],
+    ['dow=7', 'dow'],
+    ['hour=24', 'hour'],
+    ['hour=9.5', 'hour'],
   ])('rejects %s', (query, word) => {
     const r = parseParams(qs(query), new Date('2026-10-16T12:00:00Z'));
     expect(r.ok).toBe(false);
@@ -92,7 +107,7 @@ describe('/api/dashboard', () => {
     const res = await get(createApp({ getDb: db, now: () => new Date('2026-10-16T15:00:00Z') }), '/api/dashboard/lost?stage=lead&source=Web%20form');
     expect(res.status).toBe(200);
     expect((await res.json()).byType[0]).toEqual({ loss_type: 'lead_lost', people: 2, est_value: 300 });
-    expect(calls[0].values).toEqual([expect.stringMatching(/^\d{4}-\d{2}-01$/), expect.any(String), 'lead', 'Web form', null]);
+    expect(calls[0].values).toEqual([expect.stringMatching(/^\d{4}-\d{2}-01$/), expect.any(String), 'lead', 'Web form', null, null]);
   });
 
   test('lost/people hides lead_lost unless asked for', async () => {
@@ -127,6 +142,44 @@ describe('/api/dashboard', () => {
     const app = createApp({ getDb: fakeDb().db });
     expect((await get(app, '/api/dashboard/people/123')).status).toBe(404);
     expect((await get(app, '/api/dashboard/people/1;drop')).status).toBe(400);
+  });
+
+  describe('drill-down', () => {
+    test('requires Basic Auth and rejects bad filters without a query', async () => {
+      const { db, calls } = fakeDb();
+      const app = createApp({ getDb: db });
+      expect((await app.request('/api/dashboard/drill/calls', {}, env)).status).toBe(401);
+      expect((await get(app, '/api/dashboard/drill/calls?dow=9')).status).toBe(400);
+      expect(calls).toHaveLength(0);
+    });
+
+    test('calls: binds every filter and returns total and rows as numbers', async () => {
+      const { db, calls } = fakeDb({ 'FROM hp.inbound_calls i': [{ event_id: '5', person_id: null, display_name: null, handled_by: 'missed', duration_s: '0', total: '37' }] });
+      const res = await get(createApp({ getDb: db }), '/api/dashboard/drill/calls?from=2026-10-01&to=2026-10-16&hours=in&handled_by=failed&dow=1&hour=9&employee=6&leg=accepted');
+      expect(await res.json()).toMatchObject({ total: 37, rows: [{ event_id: 5, person_id: null, handled_by: 'missed', duration_s: 0 }] });
+      expect(calls[0].values).toEqual(['2026-10-01', '2026-10-16', 'in', 'failed', 1, 9, [6], 'Accepted']);
+      expect(calls[0].text).toContain('LIMIT 200');
+    });
+
+    test('lost: keeps lead_lost and passes the reason', async () => {
+      const { db, calls } = fakeDb({ 'hours_waiting': [{ person_id: '9', hours_waiting: '5.2', estimated_value: '900', total: '112' }] });
+      const body = await (await get(createApp({ getDb: db }), '/api/dashboard/drill/lost?from=2026-10-01&to=2026-10-16&reason=price')).json();
+      expect(body).toMatchObject({ total: 112, rows: [{ person_id: 9, hours_waiting: 5, estimated_value: 900 }] });
+      expect(body.rows[0]).not.toHaveProperty('total');
+      expect(calls[0].values).toEqual(['2026-10-01', '2026-10-16', null, null, null, 'price', false]);
+    });
+
+    test('leads: the step narrows the same lead set the funnel counts', async () => {
+      const { db, calls } = fakeDb({ 'FROM hp.person_summary': [{ person_id: '3', employee_touches: '2', outbound_attempts: '0', total: '4' }] });
+      const body = await (await get(createApp({ getDb: db }), '/api/dashboard/drill/leads?from=2026-10-01&to=2026-10-16&step=retained&source=Web%20form')).json();
+      expect(body).toMatchObject({ total: 4, rows: [{ person_id: 3, employee_touches: 2 }] });
+      expect(calls[0].values).toEqual(['2026-10-01', '2026-10-16', null, 'Web form', 'retained']);
+    });
+
+    test('an empty result is total 0', async () => {
+      const body = await (await get(createApp({ getDb: fakeDb().db }), '/api/dashboard/drill/leads')).json();
+      expect(body).toMatchObject({ total: 0, rows: [] });
+    });
   });
 
   test('a database error is a 500 that does not leak the message', async () => {

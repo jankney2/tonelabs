@@ -41,6 +41,12 @@ export async function getCallTotals(sql, p) {
   return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, num(v)]));
 }
 
+// Leads created in the range ($1-$2) that match the stage ($3) and source ($4) filters. The funnel and its drill-down share it.
+const LEADS_IN_RANGE = `lead_id IS NOT NULL
+  AND (lead_created_at AT TIME ZONE ${CHI}) >= $1::date AND (lead_created_at AT TIME ZONE ${CHI}) < $2::date + 1
+  AND ($3::text IS NULL OR stage = $3) AND ($4::text IS NULL OR coalesce(lead_source, 'No lead') = $4)`;
+const CONTACTED = `(employee_touches > 0 OR outbound_attempts > 0)`;
+
 /**
  * One row = one lead created in the range (hp.person_summary, newest Lawllama lead per person).
  * Contacted = an employee has handled a call with them or dialled them; retained = Lawllama status is a "won" one.
@@ -48,14 +54,12 @@ export async function getCallTotals(sql, p) {
 export async function getFunnel(sql, p) {
   const [r] = await run(sql, `
     SELECT count(*) AS leads,
-      count(*) FILTER (WHERE employee_touches > 0 OR outbound_attempts > 0) AS contacted,
+      count(*) FILTER (WHERE ${CONTACTED}) AS contacted,
       count(*) FILTER (WHERE status_stage = 'won') AS retained,
       coalesce(sum(estimated_value), 0) AS lead_value,
       coalesce(sum(estimated_value) FILTER (WHERE status_stage = 'won'), 0) AS retained_value
     FROM hp.person_summary
-    WHERE lead_id IS NOT NULL
-      AND (lead_created_at AT TIME ZONE ${CHI}) >= $1::date AND (lead_created_at AT TIME ZONE ${CHI}) < $2::date + 1
-      AND ($3::text IS NULL OR stage = $3) AND ($4::text IS NULL OR coalesce(lead_source, 'No lead') = $4)`, [p.from, p.to, p.stage, p.source]);
+    WHERE ${LEADS_IN_RANGE}`, [p.from, p.to, p.stage, p.source]);
   return Object.fromEntries(Object.entries(r).map(([k, v]) => [k, num(v)]));
 }
 
@@ -68,8 +72,9 @@ const LOST = `
       WHEN 'chat_lead_unanswered' THEN lo.chat_lead_first_at ELSE lo.lead_created_at END AS event_at
     FROM hp.lost_opportunities lo)
   SELECT * FROM lost WHERE (event_at AT TIME ZONE ${CHI}) >= $1::date AND (event_at AT TIME ZONE ${CHI}) < $2::date + 1
-    AND ($3::text IS NULL OR stage = $3) AND ($4::text IS NULL OR coalesce(lead_source, 'No lead') = $4) AND ($5::text IS NULL OR loss_type = $5)`;
-const lostArgs = (p) => [p.from, p.to, p.stage, p.source, p.lossType];
+    AND ($3::text IS NULL OR stage = $3) AND ($4::text IS NULL OR coalesce(lead_source, 'No lead') = $4) AND ($5::text IS NULL OR loss_type = $5)
+    AND ($6::text IS NULL OR reason_bucket = $6)`;
+const lostArgs = (p) => [p.from, p.to, p.stage, p.source, p.lossType, p.reason];
 
 /**
  * One row = one person who could have become a client and did not (hp.lost_opportunities has one row per person).
@@ -93,11 +98,61 @@ export async function getLostSummary(sql, p) {
  * already decided). Newest first, because a caller from yesterday is recoverable and one from last month mostly is not.
  */
 export async function getLostPeople(sql, p, limit = 100) {
+  return (await lostList(sql, p, limit, true)).rows;
+}
+
+/**
+ * Drill-down behind a lost-opportunity number: the same people, including lead_lost, with the total before the row cap.
+ */
+export const getLostDrill = (sql, p, limit = 200) => lostList(sql, p, limit, false);
+
+async function lostList(sql, p, limit, hideLeadLost) {
   const rows = await run(sql, `WITH x AS (${LOST}) SELECT person_id, display_name, primary_phone, loss_type, coalesce(lead_source, 'No lead') AS source,
-      status_name, estimated_value, failed_inbound, shared_phone, event_at,
-      extract(epoch FROM (now() - event_at)) / 3600 AS hours_waiting
-    FROM x WHERE ($5::text IS NOT NULL OR loss_type <> 'lead_lost') ORDER BY event_at DESC LIMIT ${Number(limit)}`, lostArgs(p));
-  return rows.map((r) => ({ ...r, person_id: num(r.person_id), estimated_value: num(r.estimated_value), failed_inbound: num(r.failed_inbound), hours_waiting: Math.round(num(r.hours_waiting)) }));
+      status_name, reason_bucket, estimated_value, failed_inbound, shared_phone, event_at,
+      extract(epoch FROM (now() - event_at)) / 3600 AS hours_waiting, count(*) OVER () AS total
+    FROM x WHERE (NOT $7::boolean OR $5::text IS NOT NULL OR loss_type <> 'lead_lost') ORDER BY event_at DESC LIMIT ${Number(limit)}`, [...lostArgs(p), hideLeadLost]);
+  const clean = rows.map(({ total, ...r }) => ({ ...r, person_id: num(r.person_id), estimated_value: num(r.estimated_value), failed_inbound: num(r.failed_inbound), hours_waiting: Math.round(num(r.hours_waiting)) }));
+  return { total: num(rows[0]?.total) ?? 0, rows: clean };
+}
+
+/**
+ * Drill-down behind a funnel bar: one row = one lead created in the range, narrowed by `step`
+ * (leads = all, contacted = an employee has reached them, retained = Lawllama "won"). Newest lead first.
+ */
+export async function getLeadDrill(sql, p, limit = 200) {
+  const rows = await run(sql, `
+    SELECT person_id, display_name, primary_phone, coalesce(lead_source, 'No lead') AS source, status_name, estimated_value,
+      lead_created_at, employee_touches, outbound_attempts, count(*) OVER () AS total
+    FROM hp.person_summary
+    WHERE ${LEADS_IN_RANGE}
+      AND ($5::text IS NULL OR $5::text = 'leads' OR ($5::text = 'contacted' AND ${CONTACTED}) OR ($5::text = 'retained' AND status_stage = 'won'))
+    ORDER BY lead_created_at DESC LIMIT ${Number(limit)}`, [p.from, p.to, p.stage, p.source, p.step]);
+  return {
+    total: num(rows[0]?.total) ?? 0,
+    rows: rows.map(({ total, ...r }) => ({ ...r, person_id: num(r.person_id), estimated_value: num(r.estimated_value), employee_touches: num(r.employee_touches), outbound_attempts: num(r.outbound_attempts) })),
+  };
+}
+
+/**
+ * Drill-down behind a call number: one row = one inbound call (hp.inbound_calls), newest first, with the caller when we know who.
+ * Filters: handled_by (failed = anything but an employee), heatmap slot (dow, hour), and an employee whose phone was rung
+ * (narrowed to the legs they accepted or missed by `legResult`). Same date and hours rule as the call totals.
+ */
+export async function getCallDrill(sql, p, limit = 200) {
+  const rows = await run(sql, `
+    SELECT i.event_id, i.person_id, pe.display_name, pe.primary_phone, i.occurred_at, i.office_hours, i.handled_by, i.employee_name, i.duration_s,
+      count(*) OVER () AS total
+    FROM hp.inbound_calls i LEFT JOIN hp.people pe ON pe.person_id = i.person_id
+    WHERE ${callRange('i')}
+      AND ($4::text IS NULL OR CASE $4 WHEN 'failed' THEN i.handled_by <> 'employee' ELSE i.handled_by = $4 END)
+      AND ($5::int IS NULL OR extract(dow FROM i.local_time) = $5) AND ($6::int IS NULL OR extract(hour FROM i.local_time) = $6)
+      AND ($7::int[] IS NULL OR EXISTS (SELECT 1 FROM hp.call_legs l WHERE l.event_id = i.event_id AND l.employee_id = ANY($7::int[])
+            AND ($8::text IS NULL OR l.result = $8)))
+    ORDER BY i.occurred_at DESC LIMIT ${Number(limit)}`, [p.from, p.to, p.hours, p.handledBy, p.dow, p.hour, p.employees, p.legResult]);
+  return {
+    total: num(rows[0]?.total) ?? 0,
+    rows: rows.map(({ total, ...r }) => ({ ...r, event_id: num(r.event_id), person_id: num(r.person_id), duration_s: num(r.duration_s) })),
+  };
 }
 
 /**
